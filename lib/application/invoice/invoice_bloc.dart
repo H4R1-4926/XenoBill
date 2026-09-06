@@ -52,6 +52,14 @@ class SetCustomerEvent extends InvoiceEvent {
   List<Object?> get props => [customer];
 }
 
+class UpdateCustomerDetailsEvent extends InvoiceEvent {
+  final String? name;
+  final String? phone;
+  const UpdateCustomerDetailsEvent({this.name, this.phone});
+  @override
+  List<Object?> get props => [name, phone];
+}
+
 class SetPaymentTypeEvent extends InvoiceEvent {
   final PaymentType paymentType;
   const SetPaymentTypeEvent(this.paymentType);
@@ -111,6 +119,8 @@ class InvoiceState extends Equatable {
   final List<InvoiceItem> items;
   final Customer customer;
   final PaymentType paymentType;
+  final String customCustomerName;
+  final String customCustomerPhone;
   final List<ExtraExpenseItem> extraExpenses;
   final double overallDiscount;
   final double customPaidAmount;
@@ -129,6 +139,8 @@ class InvoiceState extends Equatable {
     required this.items,
     required this.customer,
     required this.paymentType,
+    this.customCustomerName = '',
+    this.customCustomerPhone = '',
     this.extraExpenses = const [],
     this.overallDiscount = 0.0,
     this.customPaidAmount = -1.0,
@@ -146,6 +158,20 @@ class InvoiceState extends Equatable {
 
   double get totalExtraExpenses => extraExpenses.fold(0.0, (sum, e) => sum + e.amount);
   int get totalItemCount => items.fold(0, (sum, i) => sum + i.quantity);
+
+  bool get isCredit => paymentType == PaymentType.credit;
+  bool get isWalkIn => customer.id == 'cust_walk_in';
+  bool get isContactReadOnly => isCredit && !isWalkIn;
+
+  String get effectiveCustomerName {
+    if (isContactReadOnly) return customer.name;
+    return customCustomerName;
+  }
+
+  String get effectiveCustomerPhone {
+    if (isContactReadOnly) return customer.phone;
+    return customCustomerPhone;
+  }
 
   factory InvoiceState.initial() {
     final walkIn = AppDatabase.instance.customers.firstWhere(
@@ -167,6 +193,8 @@ class InvoiceState extends Equatable {
       items: const [],
       customer: walkIn,
       paymentType: PaymentType.cash,
+      customCustomerName: '',
+      customCustomerPhone: '',
       extraExpenses: const [],
     );
   }
@@ -175,6 +203,8 @@ class InvoiceState extends Equatable {
     List<InvoiceItem>? items,
     Customer? customer,
     PaymentType? paymentType,
+    String? customCustomerName,
+    String? customCustomerPhone,
     List<ExtraExpenseItem>? extraExpenses,
     double? overallDiscount,
     double? customPaidAmount,
@@ -193,6 +223,8 @@ class InvoiceState extends Equatable {
       items: items ?? this.items,
       customer: customer ?? this.customer,
       paymentType: paymentType ?? this.paymentType,
+      customCustomerName: customCustomerName ?? this.customCustomerName,
+      customCustomerPhone: customCustomerPhone ?? this.customCustomerPhone,
       extraExpenses: extraExpenses ?? this.extraExpenses,
       overallDiscount: overallDiscount ?? this.overallDiscount,
       customPaidAmount: customPaidAmount ?? this.customPaidAmount,
@@ -214,6 +246,8 @@ class InvoiceState extends Equatable {
         items,
         customer,
         paymentType,
+        customCustomerName,
+        customCustomerPhone,
         extraExpenses,
         overallDiscount,
         customPaidAmount,
@@ -267,7 +301,17 @@ class InvoiceBloc extends Bloc<InvoiceEvent, InvoiceState> {
         );
       }
 
-      _recalculateAndEmit(emit, currentItems, state.customer, state.paymentType, state.extraExpenses, state.overallDiscount, state.customPaidAmount);
+      _recalculateAndEmit(
+        emit: emit,
+        items: currentItems,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: state.customCustomerName,
+        customCustomerPhone: state.customCustomerPhone,
+        extraExpenses: state.extraExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<UpdateCartQuantityEvent>((event, emit) {
@@ -291,7 +335,17 @@ class InvoiceBloc extends Bloc<InvoiceEvent, InvoiceState> {
         }
       }
 
-      _recalculateAndEmit(emit, currentItems, state.customer, state.paymentType, state.extraExpenses, state.overallDiscount, state.customPaidAmount);
+      _recalculateAndEmit(
+        emit: emit,
+        items: currentItems,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: state.customCustomerName,
+        customCustomerPhone: state.customCustomerPhone,
+        extraExpenses: state.extraExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<UpdateCartItemPriceEvent>((event, emit) {
@@ -309,7 +363,17 @@ class InvoiceBloc extends Bloc<InvoiceEvent, InvoiceState> {
         );
       }
 
-      _recalculateAndEmit(emit, currentItems, state.customer, state.paymentType, state.extraExpenses, state.overallDiscount, state.customPaidAmount);
+      _recalculateAndEmit(
+        emit: emit,
+        items: currentItems,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: state.customCustomerName,
+        customCustomerPhone: state.customCustomerPhone,
+        extraExpenses: state.extraExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<UpdateCartItemDiscountEvent>((event, emit) {
@@ -327,7 +391,17 @@ class InvoiceBloc extends Bloc<InvoiceEvent, InvoiceState> {
         );
       }
 
-      _recalculateAndEmit(emit, currentItems, state.customer, state.paymentType, state.extraExpenses, state.overallDiscount, state.customPaidAmount);
+      _recalculateAndEmit(
+        emit: emit,
+        items: currentItems,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: state.customCustomerName,
+        customCustomerPhone: state.customCustomerPhone,
+        extraExpenses: state.extraExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<AddExtraExpenseEvent>((event, emit) {
@@ -337,29 +411,131 @@ class InvoiceBloc extends Bloc<InvoiceEvent, InvoiceState> {
         name: event.name,
         amount: event.amount,
       ));
-      _recalculateAndEmit(emit, state.items, state.customer, state.paymentType, currentExpenses, state.overallDiscount, state.customPaidAmount);
+      _recalculateAndEmit(
+        emit: emit,
+        items: state.items,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: state.customCustomerName,
+        customCustomerPhone: state.customCustomerPhone,
+        extraExpenses: currentExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<RemoveExtraExpenseEvent>((event, emit) {
       final currentExpenses = List<ExtraExpenseItem>.from(state.extraExpenses)
         ..removeWhere((e) => e.id == event.expenseId);
-      _recalculateAndEmit(emit, state.items, state.customer, state.paymentType, currentExpenses, state.overallDiscount, state.customPaidAmount);
+      _recalculateAndEmit(
+        emit: emit,
+        items: state.items,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: state.customCustomerName,
+        customCustomerPhone: state.customCustomerPhone,
+        extraExpenses: currentExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<SetCustomerEvent>((event, emit) {
-      _recalculateAndEmit(emit, state.items, event.customer, state.paymentType, state.extraExpenses, state.overallDiscount, state.customPaidAmount);
+      final newName = event.customer.id != 'cust_walk_in' ? event.customer.name : state.customCustomerName;
+      final newPhone = event.customer.id != 'cust_walk_in' ? event.customer.phone : state.customCustomerPhone;
+      _recalculateAndEmit(
+        emit: emit,
+        items: state.items,
+        customer: event.customer,
+        paymentType: state.paymentType,
+        customCustomerName: newName,
+        customCustomerPhone: newPhone,
+        extraExpenses: state.extraExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
+    });
+
+    on<UpdateCustomerDetailsEvent>((event, emit) {
+      final updatedName = event.name ?? state.customCustomerName;
+      final updatedPhone = event.phone ?? state.customCustomerPhone;
+      _recalculateAndEmit(
+        emit: emit,
+        items: state.items,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: updatedName,
+        customCustomerPhone: updatedPhone,
+        extraExpenses: state.extraExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<SetPaymentTypeEvent>((event, emit) {
-      _recalculateAndEmit(emit, state.items, state.customer, event.paymentType, state.extraExpenses, state.overallDiscount, state.customPaidAmount);
+      Customer newCustomer = state.customer;
+      String newCustomName = state.customCustomerName;
+      String newCustomPhone = state.customCustomerPhone;
+
+      if (event.paymentType == PaymentType.cash) {
+        // Credit -> Cash: reset to walk-in customer and clear credit customer details
+        newCustomer = AppDatabase.instance.customers.firstWhere(
+          (c) => c.id == 'cust_walk_in',
+          orElse: () => const Customer(
+            id: 'cust_walk_in',
+            businessId: 'biz_1',
+            name: 'Walk-in Customer',
+            phone: '',
+            email: '',
+            address: '',
+            gstin: '',
+            outstandingBalance: 0.0,
+            totalInvoices: 0,
+          ),
+        );
+        newCustomName = '';
+        newCustomPhone = '';
+      }
+
+      _recalculateAndEmit(
+        emit: emit,
+        items: state.items,
+        customer: newCustomer,
+        paymentType: event.paymentType,
+        customCustomerName: newCustomName,
+        customCustomerPhone: newCustomPhone,
+        extraExpenses: state.extraExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<SetDiscountEvent>((event, emit) {
-      _recalculateAndEmit(emit, state.items, state.customer, state.paymentType, state.extraExpenses, event.discount, state.customPaidAmount);
+      _recalculateAndEmit(
+        emit: emit,
+        items: state.items,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: state.customCustomerName,
+        customCustomerPhone: state.customCustomerPhone,
+        extraExpenses: state.extraExpenses,
+        discount: event.discount,
+        customPaidAmount: state.customPaidAmount,
+      );
     });
 
     on<SetPaidAmountEvent>((event, emit) {
-      _recalculateAndEmit(emit, state.items, state.customer, state.paymentType, state.extraExpenses, state.overallDiscount, event.amount);
+      _recalculateAndEmit(
+        emit: emit,
+        items: state.items,
+        customer: state.customer,
+        paymentType: state.paymentType,
+        customCustomerName: state.customCustomerName,
+        customCustomerPhone: state.customCustomerPhone,
+        extraExpenses: state.extraExpenses,
+        discount: state.overallDiscount,
+        customPaidAmount: event.amount,
+      );
     });
 
     on<SaveInvoiceEvent>((event, emit) async {
@@ -386,14 +562,19 @@ class InvoiceBloc extends Bloc<InvoiceEvent, InvoiceState> {
       }
       final due = (state.grandTotal - actualPaid).clamp(0.0, double.infinity);
 
+      final String finalCustName = state.effectiveCustomerName.trim().isNotEmpty
+          ? state.effectiveCustomerName.trim()
+          : 'Walk-in Customer';
+      final String finalCustPhone = state.effectiveCustomerPhone.trim();
+
       final newInvoice = Invoice(
         id: const Uuid().v4(),
         businessId: biz.id,
         invoiceNumber: invNumber,
         invoiceDate: DateTime.now(),
         customerId: state.customer.id,
-        customerName: state.customer.name,
-        customerPhone: state.customer.phone,
+        customerName: finalCustName,
+        customerPhone: finalCustPhone,
         items: state.items,
         subtotal: state.subtotal,
         discount: state.overallDiscount,
@@ -420,15 +601,17 @@ class InvoiceBloc extends Bloc<InvoiceEvent, InvoiceState> {
     });
   }
 
-  void _recalculateAndEmit(
-    Emitter<InvoiceState> emit,
-    List<InvoiceItem> items,
-    Customer customer,
-    PaymentType paymentType,
-    List<ExtraExpenseItem> extraExpenses,
-    double discount,
-    double customPaidAmount,
-  ) {
+  void _recalculateAndEmit({
+    required Emitter<InvoiceState> emit,
+    required List<InvoiceItem> items,
+    required Customer customer,
+    required PaymentType paymentType,
+    required String customCustomerName,
+    required String customCustomerPhone,
+    required List<ExtraExpenseItem> extraExpenses,
+    required double discount,
+    required double customPaidAmount,
+  }) {
     final biz = AppDatabase.instance.currentBusiness;
     final extraTotal = extraExpenses.fold(0.0, (sum, e) => sum + e.amount);
     final totals = calculateTotals.execute(
@@ -450,6 +633,8 @@ class InvoiceBloc extends Bloc<InvoiceEvent, InvoiceState> {
       items: items,
       customer: customer,
       paymentType: paymentType,
+      customCustomerName: customCustomerName,
+      customCustomerPhone: customCustomerPhone,
       extraExpenses: extraExpenses,
       overallDiscount: discount,
       customPaidAmount: customPaidAmount,

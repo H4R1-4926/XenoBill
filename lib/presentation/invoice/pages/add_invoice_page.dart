@@ -1,23 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
 import '../../../application/invoice/invoice_bloc.dart';
 import '../../../application/inventory/inventory_bloc.dart';
 import '../../../application/customers/customers_bloc.dart';
 import '../../../application/sales/sales_bloc.dart';
 import '../../../application/business/business_bloc.dart';
 import '../../../domain/entities/business.dart';
+import '../../../domain/entities/invoice.dart';
 import '../../../infrastructure/database/app_database.dart';
 import '../widgets/receipt_preview_dialog.dart';
 import '../widgets/pos/invoice_app_bar.dart';
-import '../widgets/pos/customer_payment_section.dart';
 import '../widgets/pos/customer_selector.dart';
 import '../widgets/pos/product_search_bar.dart';
 import '../widgets/pos/category_selector.dart';
 import '../widgets/pos/product_grid.dart';
 import '../widgets/pos/collapsible_cart.dart';
-import '../widgets/pos/extra_expense_section.dart';
 import '../widgets/pos/invoice_action_buttons.dart';
 
 class AddInvoicePage extends StatefulWidget {
@@ -30,6 +28,8 @@ class AddInvoicePage extends StatefulWidget {
 class _AddInvoicePageState extends State<AddInvoicePage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
   String _selectedCategory = 'All';
   bool _shouldPrintAfterSave = false;
 
@@ -39,17 +39,14 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
     context.read<InvoiceBloc>().add(ResetCartEvent());
     context.read<InventoryBloc>().add(LoadInventoryEvent());
     context.read<CustomersBloc>().add(LoadCustomersEvent());
-
-    // Autofocus product search for fast 1-tap workflow
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _searchFocusNode.requestFocus();
-    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _nameController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -64,12 +61,11 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
 
         final terminology = business?.terminology;
         final features = business?.features;
-        final nextInvNum = business?.nextInvoiceNumber ?? 1001;
+        final nextInvNum = business?.nextInvoiceNumber ?? AppDatabase.instance.currentBusiness?.nextInvoiceNumber ?? 1001;
         final prefix = business?.invoicePrefix ?? 'INV';
         final invNumber = '$prefix-$nextInvNum';
         final invoiceLabel = terminology?.invoice ?? 'Invoice';
-        final itemLabel = terminology?.item ?? 'Item';
-        final customerLabel = terminology?.customer ?? 'Customer / Party';
+        final itemLabel = terminology?.item ?? 'Product';
 
         return BlocListener<InvoiceBloc, InvoiceState>(
           listener: (context, state) {
@@ -84,10 +80,10 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
             }
 
             if (state.savedInvoice != null) {
-              // Trigger Sales and Inventory refresh
               context.read<SalesBloc>().add(LoadSalesEvent());
               context.read<InventoryBloc>().add(LoadInventoryEvent());
               context.read<CustomersBloc>().add(LoadCustomersEvent());
+              context.read<BusinessBloc>().add(LoadBusinessEvent());
 
               final invoiceBloc = context.read<InvoiceBloc>();
               final navigator = Navigator.of(context);
@@ -122,54 +118,74 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
               }
             }
           },
-          child: Scaffold(
-            backgroundColor: AppColors.lightGray,
-            // 2. APP BAR
-            appBar: InvoiceAppBar(
-              invoiceNumber: invNumber,
-              title: 'New $invoiceLabel',
-              onResetTap: () {
-                context.read<InvoiceBloc>().add(ResetCartEvent());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Invoice cart reset'),
-                    duration: Duration(seconds: 1),
-                  ),
-                );
-              },
-            ),
-            body: SafeArea(
-              child: BlocBuilder<InvoiceBloc, InvoiceState>(
-                builder: (context, invoiceState) {
-                  return Column(
+          child: BlocBuilder<InvoiceBloc, InvoiceState>(
+            builder: (context, invoiceState) {
+              // Sync controllers with customer contact details
+              final isReadOnly = invoiceState.isContactReadOnly;
+              if (isReadOnly) {
+                if (_nameController.text != invoiceState.effectiveCustomerName) {
+                  _nameController.text = invoiceState.effectiveCustomerName;
+                }
+                if (_phoneController.text != invoiceState.effectiveCustomerPhone) {
+                  _phoneController.text = invoiceState.effectiveCustomerPhone;
+                }
+              } else {
+                if (_nameController.text != invoiceState.customCustomerName) {
+                  _nameController.text = invoiceState.customCustomerName;
+                }
+                if (_phoneController.text != invoiceState.customCustomerPhone) {
+                  _phoneController.text = invoiceState.customCustomerPhone;
+                }
+              }
+
+              return Scaffold(
+                backgroundColor: const Color(0xFFF9FAFB),
+                // Pinned App Bar with Customer Name & Phone textfields
+                appBar: InvoiceAppBar(
+                  invoiceNumber: invNumber,
+                  selectedCustomer: invoiceState.customer,
+                  selectedPaymentType: invoiceState.paymentType,
+                  isReadOnly: isReadOnly,
+                  nameController: _nameController,
+                  phoneController: _phoneController,
+                  onNameChanged: (val) {
+                    context.read<InvoiceBloc>().add(
+                          UpdateCustomerDetailsEvent(name: val),
+                        );
+                  },
+                  onPhoneChanged: (val) {
+                    context.read<InvoiceBloc>().add(
+                          UpdateCustomerDetailsEvent(phone: val),
+                        );
+                  },
+                  onTapCustomer: () {
+                    CustomerSelector.showCustomerPicker(context, label: 'Select customer');
+                  },
+                  onSelectPayment: (type) {
+                    context.read<InvoiceBloc>().add(SetPaymentTypeEvent(type));
+                    if (type == PaymentType.credit) {
+                      if (invoiceState.customer.id == 'cust_walk_in') {
+                        CustomerSelector.showCustomerPicker(context, label: 'Select customer');
+                      }
+                    }
+                  },
+                ),
+                body: SafeArea(
+                  child: Column(
                     children: [
-                      // Main Content View (Vertically Scrollable Wireframe Layout)
+                      // Scrollable Body Content
                       Expanded(
                         child: SingleChildScrollView(
                           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: const EdgeInsets.all(AppSpacing.md),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // 3. CUSTOMER + PAYMENT HEADER (Immediately below App Bar)
-                              CustomerPaymentSection(
-                                selectedCustomer: invoiceState.customer,
-                                selectedPaymentType: invoiceState.paymentType,
-                                customerLabel: customerLabel,
-                                onTapCustomer: () {
-                                  CustomerSelector.showCustomerPicker(context, label: customerLabel);
-                                },
-                                onSelectPayment: (type) {
-                                  context.read<InvoiceBloc>().add(SetPaymentTypeEvent(type));
-                                },
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-
-                              // 5. PRODUCT SEARCH
+                              // 1. Search & Barcode Scan Bar
                               ProductSearchBar(
                                 controller: _searchController,
                                 focusNode: _searchFocusNode,
-                                hintText: 'Search $itemLabel name, SKU or barcode',
+                                hintText: 'Search product...',
                                 onChanged: (q) {
                                   context.read<InventoryBloc>().add(SearchInventoryEvent(q));
                                 },
@@ -177,46 +193,28 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
                                     ? () => _simulateBarcodeScan(context)
                                     : null,
                               ),
-                              const SizedBox(height: AppSpacing.sm),
+                              const SizedBox(height: 10),
 
-                              // 6. PRODUCT CATEGORIES
+                              // 2. Horizontal Category Pills Selector
                               _buildCategorySelector(context),
-                              const SizedBox(height: AppSpacing.sm),
+                              const SizedBox(height: 12),
 
-                              // 7. PRODUCT GRID (2-column mobile grid)
-                              _buildProductGridSection(context, itemLabel),
-                              const SizedBox(height: AppSpacing.md),
-
-                              // 8 & 9. COLLAPSED CART BAR (Hidden cart items by default, expandable panel)
+                              // 3. Collapsible CART Card
                               CollapsibleCart(
                                 items: invoiceState.items,
                                 totalItemCount: invoiceState.totalItemCount,
                               ),
-                              const SizedBox(height: AppSpacing.md),
+                              const SizedBox(height: 14),
 
-                              // 12. DIVIDER
-                              const Divider(height: 1, color: AppColors.border),
-                              const SizedBox(height: AppSpacing.md),
-
-                              // 13. EXTRA EXPENSE
-                              ExtraExpenseSection(
-                                extraExpenses: invoiceState.extraExpenses,
-                                onAddExpense: (exp) {
-                                  context.read<InvoiceBloc>().add(
-                                        AddExtraExpenseEvent(name: exp.name, amount: exp.amount),
-                                      );
-                                },
-                                onRemoveExpense: (id) {
-                                  context.read<InvoiceBloc>().add(RemoveExtraExpenseEvent(id));
-                                },
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
+                              // 4. Product Cards Grid (3 columns, No photo fallback)
+                              _buildProductGridSection(context, itemLabel),
+                              const SizedBox(height: 14),
                             ],
                           ),
                         ),
                       ),
 
-                      // 15. SAVE ACTIONS & FINANCIAL SUMMARY (Bottom Sticky Bar)
+                      // 5. Bottom Financial Summary & Save Actions
                       InvoiceActionButtons(
                         subtotal: invoiceState.subtotal,
                         cgst: invoiceState.cgst,
@@ -235,10 +233,10 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
                         },
                       ),
                     ],
-                  );
-                },
-              ),
-            ),
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -263,7 +261,7 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
   Widget _buildCategorySelector(BuildContext context) {
     return BlocBuilder<InventoryBloc, InventoryState>(
       builder: (context, state) {
-        Set<String> categoriesSet = {'All'};
+        Set<String> categoriesSet = {'All', 'Category 1', 'Category 2'};
         if (state is InventoryLoaded) {
           for (final item in state.products) {
             if (item.category.isNotEmpty) categoriesSet.add(item.category);

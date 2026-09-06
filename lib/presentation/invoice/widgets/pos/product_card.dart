@@ -19,21 +19,21 @@ class ProductCard extends StatelessWidget {
     final bool isProduct = product.isProduct;
     final int stock = product.currentStock;
     final bool isOutOfStock = isProduct && stock <= 0;
-    final bool isLowStock = isProduct && stock > 0 && stock <= 5;
+    final bool hasImage = product.imageUrl != null && product.imageUrl!.trim().isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
         color: isOutOfStock ? Colors.grey.shade50 : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isOutOfStock ? Colors.grey.shade300 : AppColors.border,
           width: 1,
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Color(0x06000000),
             blurRadius: 6,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -41,148 +41,111 @@ class ProductCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: isOutOfStock ? null : onAddTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top header: Product image/icon & Stock badge
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: isOutOfStock
-                            ? Colors.grey.shade200
-                            : AppColors.brightCyan.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Product Image or 'No Photo' Placeholder Box
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: hasImage
+                            ? Image.network(
+                                product.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (ctx, err, stack) => _buildNoPhotoFallback(),
+                              )
+                            : _buildNoPhotoFallback(),
                       ),
-                      child: Icon(
-                        isProduct ? Icons.inventory_2_outlined : Icons.design_services_outlined,
-                        color: isOutOfStock ? Colors.grey.shade500 : AppColors.darkNavy,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          if (isOutOfStock)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      if (isOutOfStock)
+                        Positioned.fill(
+                          child: Container(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            alignment: Alignment.center,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: Colors.red.shade50,
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: Colors.red.shade200),
                               ),
                               child: Text(
                                 'Out of stock',
                                 style: AppTextStyles.bodySmall.copyWith(
                                   color: Colors.red.shade700,
-                                  fontSize: 9,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                 ),
-                              ),
-                            )
-                          else if (isLowStock)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.shade50,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: Colors.orange.shade200),
-                              ),
-                              child: Text(
-                                'Low stock ($stock)',
-                                style: AppTextStyles.bodySmall.copyWith(
-                                  color: Colors.orange.shade800,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            )
-                          else if (isProduct)
-                            Text(
-                              'Stock: $stock',
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                                fontSize: 10,
                               ),
                             ),
-                        ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Bottom Details Section (Product Name & Price)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: isOutOfStock ? Colors.grey.shade600 : AppColors.nearBlack,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Product Name
-                Text(
-                  product.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: isOutOfStock ? Colors.grey.shade600 : AppColors.nearBlack,
-                  ),
-                ),
-
-                // Product SKU / Category code
-                if (product.sku.isNotEmpty || product.category.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    product.sku.isNotEmpty ? product.sku : product.category,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-
-                const Spacer(),
-
-                // Price and Add (+) Button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
+                    const SizedBox(height: 2),
                     Text(
                       CurrencyFormatter.format(product.sellingPrice),
                       style: AppTextStyles.bodyMedium.copyWith(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 13,
                         color: isOutOfStock ? Colors.grey.shade500 : AppColors.darkNavy,
-                      ),
-                    ),
-                    InkWell(
-                      onTap: isOutOfStock ? null : onAddTap,
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: isOutOfStock ? Colors.grey.shade300 : AppColors.brightCyan,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.add,
-                          color: isOutOfStock ? Colors.grey.shade600 : AppColors.deepNavy,
-                          size: 20,
-                        ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoPhotoFallback() {
+    return Container(
+      color: const Color(0xFFEFEFEF),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.image_not_supported_outlined,
+              size: 24,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'no photo',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
         ),
       ),
     );

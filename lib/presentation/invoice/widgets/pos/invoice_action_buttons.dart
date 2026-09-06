@@ -28,209 +28,156 @@ class InvoiceActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isIgst = igst > 0;
-    final double computedCgst = cgst > 0 ? cgst : (isIgst ? 0.0 : totalTax / 2.0);
-    final double computedSgst = sgst > 0 ? sgst : (isIgst ? 0.0 : totalTax / 2.0);
+    final double gstPercentage = subtotal > 0 ? (totalTax / subtotal) * 100 : 5.0;
+    final String gstLabel = 'GST (${gstPercentage.toStringAsFixed(0)}%):';
 
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
+            color: Color(0x0A000000),
+            blurRadius: 12,
+            offset: Offset(0, -4),
           ),
         ],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Subtotal Row
+            // Financial Breakdown Rows
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Subtotal',
+                  'subtotal:',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
                 Text(
                   CurrencyFormatter.format(subtotal),
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Color(0xFF4B5563),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 2),
-
-            // GST Breakdown (IGST or CGST + SGST)
-            if (isIgst) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'IGST',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    CurrencyFormatter.format(igst),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF0F172A),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-            ] else ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'CGST',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    CurrencyFormatter.format(computedCgst),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF0F172A),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'SGST',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    CurrencyFormatter.format(computedSgst),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF0F172A),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-            ],
-
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
             const SizedBox(height: 4),
 
-            // Total Row
+            if (totalTax > 0)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    gstLabel,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B7280),
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  Text(
+                    CurrencyFormatter.format(totalTax),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF4B5563),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 12),
+
+            // Grand Total Row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Total',
+                  'Total:',
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
+                    color: AppColors.nearBlack,
                   ),
                 ),
                 Text(
                   CurrencyFormatter.format(grandTotal),
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.darkNavy,
+                    color: AppColors.nearBlack,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 14),
 
-            // Buttons Row
+            // Action Buttons Row (Save & Save & Print)
             Row(
               children: [
-                // Save button
+                // Save Outlined Capsule Button
                 Expanded(
-                  flex: 2,
                   child: OutlinedButton(
                     onPressed: isSaving ? null : onSave,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.darkNavy,
-                      side: const BorderSide(color: AppColors.darkNavy, width: 1.5),
-                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      foregroundColor: AppColors.nearBlack,
+                      side: const BorderSide(color: Color(0xFF0084FF), width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(24),
                       ),
-                      minimumSize: const Size(0, 40),
                     ),
                     child: const Text(
                       'Save',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.nearBlack,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
 
-                // Save & Print primary button
+                // Save & Print Primary Capsule Button
                 Expanded(
-                  flex: 3,
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: isSaving ? null : onSaveAndPrint,
-                    icon: isSaving
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0084FF),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    child: isSaving
                         ? const SizedBox(
-                            width: 16,
-                            height: 16,
+                            width: 18,
+                            height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: AppColors.deepNavy,
+                              color: Colors.white,
                             ),
                           )
-                        : const Icon(Icons.print_outlined,
-                            color: AppColors.deepNavy, size: 18),
-                    label: Text(
-                      isSaving ? 'Saving...' : 'Save & Print',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.deepNavy,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brightCyan,
-                      foregroundColor: AppColors.deepNavy,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 9),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      minimumSize: const Size(0, 40),
-                    ),
+                        : const Text(
+                            'Save & Print',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                 ),
               ],

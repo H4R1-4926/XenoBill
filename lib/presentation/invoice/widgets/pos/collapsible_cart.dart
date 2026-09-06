@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../domain/entities/invoice.dart';
+import '../../../../application/invoice/invoice_bloc.dart';
 import 'full_cart_modal.dart';
 
 class CollapsibleCart extends StatefulWidget {
@@ -27,85 +29,56 @@ class _CollapsibleCartState extends State<CollapsibleCart> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border, width: 1),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Color(0x06000000),
+            blurRadius: 6,
+            offset: Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 8. COLLAPSED CART BAR (Always visible)
+          // COLLAPSED CART BAR (Header)
           InkWell(
             onTap: () {
               setState(() {
                 _isExpanded = !_isExpanded;
               });
             },
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: widget.items.isEmpty
-                              ? AppColors.lightGray
-                              : AppColors.brightCyan.withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.shopping_bag_outlined,
-                          size: 18,
-                          color: widget.items.isEmpty ? AppColors.textSecondary : AppColors.darkNavy,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Cart (${widget.totalItemCount} ${widget.totalItemCount == 1 ? 'Item' : 'Items'})',
-                        style: AppTextStyles.h3.copyWith(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.nearBlack,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'CART',
+                    style: AppTextStyles.h3.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      color: AppColors.nearBlack,
+                    ),
                   ),
                   Row(
                     children: [
-                      if (widget.items.isNotEmpty && !_isExpanded) ...[
-                        Text(
-                          CurrencyFormatter.format(
-                            widget.items.fold(0.0, (sum, i) => sum + i.totalAmount),
-                          ),
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.darkNavy,
-                            fontSize: 13,
-                          ),
+                      Text(
+                        '${widget.totalItemCount} items',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.nearBlack,
                         ),
-                        const SizedBox(width: 8),
-                      ],
-                      AnimatedRotation(
-                        turns: _isExpanded ? 0.5 : 0.0,
-                        duration: const Duration(milliseconds: 200),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(
-                            Icons.keyboard_arrow_up,
-                            size: 22,
-                            color: AppColors.darkNavy,
-                          ),
-                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        size: 20,
+                        color: Colors.grey.shade600,
                       ),
                     ],
                   ),
@@ -114,19 +87,19 @@ class _CollapsibleCartState extends State<CollapsibleCart> {
             ),
           ),
 
-          // 9. EXPANDED CART PREVIEW (Animated height expansion)
+          // EXPANDED CART ITEMS PREVIEW
           AnimatedSize(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
             child: _isExpanded
                 ? Column(
                     children: [
-                      const Divider(height: 1, color: AppColors.border),
+                      const Divider(height: 1, color: Color(0xFFF3F4F6)),
                       if (widget.items.isEmpty)
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: Text(
-                            'Cart is empty. Tap + on products to add.',
+                            'Cart is empty. Tap products to add.',
                             style: AppTextStyles.bodySmall.copyWith(
                               color: AppColors.textSecondary,
                               fontStyle: FontStyle.italic,
@@ -139,39 +112,108 @@ class _CollapsibleCartState extends State<CollapsibleCart> {
                           child: Column(
                             children: widget.items.map((item) {
                               return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                padding: const EdgeInsets.symmetric(vertical: 8),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
+                                    // Item Details (Name & 1×100)
                                     Expanded(
+                                      flex: 4,
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             item.productName,
-                                            style: AppTextStyles.bodyMedium.copyWith(
-                                              fontWeight: FontWeight.w600,
+                                            style: const TextStyle(
                                               fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.nearBlack,
                                             ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
+                                          const SizedBox(height: 2),
                                           Text(
-                                            '${item.quantity} × ${CurrencyFormatter.format(item.unitPrice)}',
-                                            style: AppTextStyles.bodySmall.copyWith(
-                                              color: AppColors.textSecondary,
+                                            '${item.quantity}×${item.unitPrice.toStringAsFixed(0)}',
+                                            style: const TextStyle(
                                               fontSize: 11,
+                                              color: Color(0xFF9CA3AF),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    Text(
-                                      CurrencyFormatter.format(item.totalAmount),
-                                      style: AppTextStyles.bodyMedium.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        color: AppColors.nearBlack,
+
+                                    // Quantity Stepper [- 1 +]
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE5E7EB),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          InkWell(
+                                            onTap: () {
+                                              context.read<InvoiceBloc>().add(
+                                                    UpdateCartQuantityEvent(
+                                                      productId: item.productId,
+                                                      delta: -1,
+                                                    ),
+                                                  );
+                                            },
+                                            child: const Padding(
+                                              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                              child: Icon(Icons.remove, size: 14, color: AppColors.nearBlack),
+                                            ),
+                                          ),
+                                          Text(
+                                            '${item.quantity}',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.nearBlack,
+                                            ),
+                                          ),
+                                          InkWell(
+                                            onTap: () {
+                                              context.read<InvoiceBloc>().add(
+                                                    UpdateCartQuantityEvent(
+                                                      productId: item.productId,
+                                                      delta: 1,
+                                                    ),
+                                                  );
+                                            },
+                                            child: const Padding(
+                                              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                              child: Icon(Icons.add, size: 14, color: AppColors.nearBlack),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // Tag Price Badge (🏷️ ₹ 100)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE5E7EB),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.local_offer_outlined, size: 12, color: Color(0xFF6B7280)),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            CurrencyFormatter.format(item.totalAmount),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.nearBlack,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
@@ -180,29 +222,25 @@ class _CollapsibleCartState extends State<CollapsibleCart> {
                             }).toList(),
                           ),
                         ),
-                        const Divider(height: 1, color: AppColors.border),
-                        // 11. View All Cart Button
+                        const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                        // View Full Cart Button
                         InkWell(
                           onTap: () => FullCartModal.show(context),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  'View All Cart',
-                                  style: AppTextStyles.bodyMedium.copyWith(
-                                    fontWeight: FontWeight.bold,
+                                  'View Full Cart Details',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                     color: AppColors.darkNavy,
-                                    fontSize: 13,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.arrow_forward_ios,
-                                  size: 12,
-                                  color: AppColors.darkNavy,
-                                ),
+                                SizedBox(width: 4),
+                                Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.darkNavy),
                               ],
                             ),
                           ),

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
 
 class CategorySelector extends StatelessWidget {
   final List<String> categories;
@@ -17,7 +15,7 @@ class CategorySelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 36,
+      height: 38,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
@@ -29,21 +27,21 @@ class CategorySelector extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: InkWell(
               onTap: () => onSelectCategory(cat),
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(19),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.darkNavy : Colors.white,
-                  borderRadius: BorderRadius.circular(18),
+                  color: isSelected ? const Color(0xFF0084FF) : Colors.white,
+                  borderRadius: BorderRadius.circular(19),
                   border: Border.all(
-                    color: isSelected ? AppColors.darkNavy : AppColors.border,
-                    width: isSelected ? 1.5 : 1.0,
+                    color: isSelected ? const Color(0xFF0084FF) : const Color(0xFFE5E7EB),
+                    width: 1,
                   ),
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: AppColors.darkNavy.withValues(alpha: 0.2),
+                            color: const Color(0xFF0084FF).withValues(alpha: 0.25),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           )
@@ -52,10 +50,10 @@ class CategorySelector extends StatelessWidget {
                 ),
                 child: Text(
                   cat,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    color: isSelected ? Colors.white : AppColors.nearBlack,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected ? Colors.white : const Color(0xFF0084FF),
                   ),
                 ),
               ),

@@ -58,12 +58,15 @@ class ProductGrid extends StatelessWidget {
       );
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final int crossAxisCount = screenWidth > 600 ? 4 : 3;
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.25,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.72,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),

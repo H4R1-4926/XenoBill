@@ -21,6 +21,7 @@ class Item extends Equatable {
   final int lowStockLimit;
   final int durationMinutes; // For services (e.g. 30 mins haircut)
   final bool isActive;
+  final String? imageUrl;
 
   const Item({
     required this.id,
@@ -41,6 +42,7 @@ class Item extends Equatable {
     this.lowStockLimit = 5,
     this.durationMinutes = 0,
     this.isActive = true,
+    this.imageUrl,
   });
 
   bool get isProduct => type == ItemType.product;
@@ -68,6 +70,7 @@ class Item extends Equatable {
     int? lowStockLimit,
     int? durationMinutes,
     bool? isActive,
+    String? imageUrl,
   }) {
     return Item(
       id: id ?? this.id,
@@ -88,6 +91,7 @@ class Item extends Equatable {
       lowStockLimit: lowStockLimit ?? this.lowStockLimit,
       durationMinutes: durationMinutes ?? this.durationMinutes,
       isActive: isActive ?? this.isActive,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 
@@ -111,5 +115,6 @@ class Item extends Equatable {
         lowStockLimit,
         durationMinutes,
         isActive,
+        imageUrl,
       ];
 }

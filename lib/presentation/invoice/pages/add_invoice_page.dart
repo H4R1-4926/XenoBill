@@ -173,40 +173,44 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
                 body: SafeArea(
                   child: Column(
                     children: [
-                      // Scrollable Body Content
+                      const SizedBox(height: 10),
+                      // 1. FIXED Search & Barcode Scan Row
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: ProductSearchBar(
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          hintText: 'Search product...',
+                          onChanged: (q) {
+                            context.read<InventoryBloc>().add(SearchInventoryEvent(q));
+                          },
+                          onScanTap: (features?.barcodeEnabled ?? true)
+                              ? () => _simulateBarcodeScan(context)
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // 2. FIXED Horizontally Scrollable Category Chips
+                      _buildCategorySelector(context),
+                      const SizedBox(height: 10),
+
+                      // 3. Scrollable Main Content (Cart & Product Grid)
                       Expanded(
                         child: SingleChildScrollView(
                           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // 1. Search & Barcode Scan Bar
-                              ProductSearchBar(
-                                controller: _searchController,
-                                focusNode: _searchFocusNode,
-                                hintText: 'Search product...',
-                                onChanged: (q) {
-                                  context.read<InventoryBloc>().add(SearchInventoryEvent(q));
-                                },
-                                onScanTap: (features?.barcodeEnabled ?? true)
-                                    ? () => _simulateBarcodeScan(context)
-                                    : null,
-                              ),
-                              const SizedBox(height: 10),
-
-                              // 2. Horizontal Category Pills Selector
-                              _buildCategorySelector(context),
-                              const SizedBox(height: 12),
-
-                              // 3. Collapsible CART Card
+                              // Cart Card
                               CollapsibleCart(
                                 items: invoiceState.items,
                                 totalItemCount: invoiceState.totalItemCount,
                               ),
                               const SizedBox(height: 14),
 
-                              // 4. Product Cards Grid (3 columns, No photo fallback)
+                              // Product Cards Grid
                               _buildProductGridSection(context, itemLabel),
                               const SizedBox(height: 14),
                             ],

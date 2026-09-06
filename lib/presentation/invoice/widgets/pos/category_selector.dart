@@ -18,6 +18,7 @@ class CategorySelector extends StatelessWidget {
       height: 38,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: categories.length,
         itemBuilder: (context, index) {
           final cat = categories[index];
@@ -27,33 +28,20 @@ class CategorySelector extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: InkWell(
               onTap: () => onSelectCategory(cat),
-              borderRadius: BorderRadius.circular(19),
+              borderRadius: BorderRadius.circular(20),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF0084FF) : Colors.white,
-                  borderRadius: BorderRadius.circular(19),
-                  border: Border.all(
-                    color: isSelected ? const Color(0xFF0084FF) : const Color(0xFFE5E7EB),
-                    width: 1,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: const Color(0xFF0084FF).withValues(alpha: 0.25),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          )
-                        ]
-                      : null,
+                  color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   cat,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    color: isSelected ? Colors.white : const Color(0xFF0084FF),
+                    color: isSelected ? Colors.white : const Color(0xFF4B5563),
                   ),
                 ),
               ),

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
 
-class ProductSearchBar extends StatelessWidget {
+class ProductSearchBar extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode? focusNode;
   final ValueChanged<String> onChanged;
@@ -15,91 +14,167 @@ class ProductSearchBar extends StatelessWidget {
     this.focusNode,
     required this.onChanged,
     this.onScanTap,
-    this.hintText = 'Search Product name, SKU or barcode',
+    this.hintText = 'Search product...',
   });
+
+  @override
+  State<ProductSearchBar> createState() => _ProductSearchBarState();
+}
+
+class _ProductSearchBarState extends State<ProductSearchBar> {
+  late FocusNode _effectiveFocusNode;
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _effectiveFocusNode = widget.focusNode ?? FocusNode();
+    _effectiveFocusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(ProductSearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusNode != oldWidget.focusNode) {
+      oldWidget.focusNode?.removeListener(_handleFocusChange);
+      _effectiveFocusNode = widget.focusNode ?? FocusNode();
+      _effectiveFocusNode.addListener(_handleFocusChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.focusNode == null) {
+      _effectiveFocusNode.dispose();
+    } else {
+      _effectiveFocusNode.removeListener(_handleFocusChange);
+    }
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (mounted) {
+      setState(() {
+        _isFocused = _effectiveFocusNode.hasFocus;
+      });
+    }
+  }
+
+  void _handleDone() {
+    _effectiveFocusNode.unfocus();
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isFocused = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Search Input Container
+        // Search Input TextField (Light Ash Filled TextField)
         Expanded(
-          child: Container(
+          child: SizedBox(
             height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: AppColors.border, width: 1),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x06000000),
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
+            child: TextField(
+              controller: widget.controller,
+              focusNode: _effectiveFocusNode,
+              onChanged: widget.onChanged,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _handleDone(),
+              style: const TextStyle(
+                color: AppColors.nearBlack,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFFF3F4F6),
+                hintText: widget.hintText,
+                hintStyle: const TextStyle(
+                  color: Color(0xFF9CA3AF),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
                 ),
-              ],
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              children: [
-                const Icon(Icons.search, color: AppColors.darkNavy, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    onChanged: onChanged,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.nearBlack,
-                      fontSize: 13,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: hintText,
-                      hintStyle: TextStyle(
-                        color: Colors.grey.shade400,
-                        fontSize: 13,
-                      ),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF6B7280), size: 20),
+                suffixIcon: widget.controller.text.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          widget.controller.clear();
+                          widget.onChanged('');
+                          setState(() {});
+                        },
+                        child: const Icon(Icons.close, color: Color(0xFF6B7280), size: 18),
+                      )
+                    : null,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide.none,
                 ),
-                if (controller.text.isNotEmpty)
-                  GestureDetector(
-                    onTap: () {
-                      controller.clear();
-                      onChanged('');
-                    },
-                    child: const Icon(Icons.close, color: AppColors.textSecondary, size: 18),
-                  ),
-              ],
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide.none,
+                ),
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
           ),
         ),
-        if (onScanTap != null) ...[
+
+        // Done Action Button (when search is focused)
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          child: _isFocused
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: _handleDone,
+                      borderRadius: BorderRadius.circular(14),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Text(
+                          'Done',
+                          style: TextStyle(
+                            color: Color(0xFF2563EB),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+
+        // Scanner Button
+        if (widget.onScanTap != null) ...[
           const SizedBox(width: 8),
-          // Barcode Icon Button (Square Tile)
           InkWell(
-            onTap: onScanTap,
+            onTap: widget.onScanTap,
             borderRadius: BorderRadius.circular(14),
             child: Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: const Color(0xFFF3F4F6),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x06000000),
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
               ),
               child: const Icon(
-                Icons.line_weight_sharp, // Barcode representation icon
-                color: AppColors.darkNavy,
+                Icons.qr_code_scanner_rounded,
+                color: AppColors.nearBlack,
                 size: 22,
               ),
             ),

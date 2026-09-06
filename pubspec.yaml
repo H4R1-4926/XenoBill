@@ -28,6 +28,7 @@ dependencies:
   supabase_flutter: ^2.8.0
   drift: ^2.14.0
   sqlite3_flutter_libs: ^0.5.18
+  mobile_scanner: ^7.4.0
 
 
 dev_dependencies:

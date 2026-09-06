@@ -7,6 +7,7 @@ class ProductSearchBar extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback? onScanTap;
   final String hintText;
+  final bool isScannerOpen;
 
   const ProductSearchBar({
     super.key,
@@ -15,6 +16,7 @@ class ProductSearchBar extends StatefulWidget {
     required this.onChanged,
     this.onScanTap,
     this.hintText = 'Search product...',
+    this.isScannerOpen = false,
   });
 
   @override
@@ -165,16 +167,17 @@ class _ProductSearchBarState extends State<ProductSearchBar> {
           InkWell(
             onTap: widget.onScanTap,
             borderRadius: BorderRadius.circular(14),
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
+                color: widget.isScannerOpen ? const Color(0xFF2563EB) : const Color(0xFFF3F4F6),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.qr_code_scanner_rounded,
-                color: AppColors.nearBlack,
+                color: widget.isScannerOpen ? Colors.white : AppColors.nearBlack,
                 size: 22,
               ),
             ),

@@ -17,6 +17,7 @@ import '../widgets/pos/category_selector.dart';
 import '../widgets/pos/product_grid.dart';
 import '../widgets/pos/collapsible_cart.dart';
 import '../widgets/pos/invoice_action_buttons.dart';
+import '../widgets/pos/barcode_scanner_view.dart';
 
 class AddInvoicePage extends StatefulWidget {
   const AddInvoicePage({super.key});
@@ -32,6 +33,7 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
   final TextEditingController _phoneController = TextEditingController();
   String _selectedCategory = 'All';
   bool _shouldPrintAfterSave = false;
+  bool _isScannerOpen = false;
 
   @override
   void initState() {
@@ -48,6 +50,46 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
     _nameController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  void _handleScannedBarcode(BuildContext context, String code) {
+    final invState = context.read<InventoryBloc>().state;
+    if (invState is InventoryLoaded) {
+      final cleanCode = code.trim().toLowerCase();
+      final matches = invState.products.where((p) {
+        return p.isProduct &&
+            (p.barcode.toLowerCase() == cleanCode ||
+                p.sku.toLowerCase() == cleanCode ||
+                p.id.toLowerCase() == cleanCode);
+      }).toList();
+
+      if (matches.isNotEmpty) {
+        final item = matches.first;
+        context.read<InvoiceBloc>().add(AddProductToCartEvent(item));
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Scanned barcode: ${item.name} added to cart!'),
+            backgroundColor: AppColors.darkNavy,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() {
+          _isScannerOpen = false;
+        });
+      } else {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No product found for barcode: $code'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -181,18 +223,30 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
                           controller: _searchController,
                           focusNode: _searchFocusNode,
                           hintText: 'Search product...',
+                          isScannerOpen: _isScannerOpen,
                           onChanged: (q) {
                             context.read<InventoryBloc>().add(SearchInventoryEvent(q));
                           },
                           onScanTap: (features?.barcodeEnabled ?? true)
-                              ? () => _simulateBarcodeScan(context)
+                              ? () => setState(() => _isScannerOpen = !_isScannerOpen)
                               : null,
                         ),
                       ),
                       const SizedBox(height: 10),
 
-                      // 2. FIXED Horizontally Scrollable Category Chips
-                      _buildCategorySelector(context),
+                      // 2. EMBEDDED SCANNER VIEW OR CATEGORY CHIPS
+                      AnimatedCrossFade(
+                        duration: const Duration(milliseconds: 200),
+                        crossFadeState: _isScannerOpen ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                        firstChild: Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: BarcodeScannerView(
+                            onScan: (code) => _handleScannedBarcode(context, code),
+                            onClose: () => setState(() => _isScannerOpen = false),
+                          ),
+                        ),
+                        secondChild: _buildCategorySelector(context),
+                      ),
                       const SizedBox(height: 10),
 
                       // 3. Scrollable Main Content (Cart & Product Grid)

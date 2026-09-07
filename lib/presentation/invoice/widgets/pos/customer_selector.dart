@@ -69,7 +69,7 @@ class _CustomerPickerModalState extends State<_CustomerPickerModal> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -112,53 +112,66 @@ class _CustomerPickerModalState extends State<_CustomerPickerModal> {
           ),
           const SizedBox(height: 14),
 
-          // Search Bar Input ('search')
-          Container(
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE5E7EB),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (val) => setState(() => _searchQuery = val.toLowerCase().trim()),
-              style: const TextStyle(fontSize: 14, color: AppColors.nearBlack),
-              decoration: const InputDecoration(
-                hintText: 'search',
-                hintStyle: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 12),
+          // Search Bar Input ('search') - Ash fill directly on TextField
+          TextField(
+            controller: _searchController,
+            onChanged: (val) => setState(() => _searchQuery = val.toLowerCase().trim()),
+            style: const TextStyle(fontSize: 14, color: AppColors.nearBlack),
+            decoration: InputDecoration(
+              hintText: 'search',
+              hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+              filled: true,
+              fillColor: const Color(0xFFF3F4F6),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
               ),
             ),
           ),
           const SizedBox(height: 14),
 
-          // Customer List
-          Expanded(
-            child: BlocBuilder<CustomersBloc, CustomersState>(
-              builder: (context, state) {
-                if (state is CustomersLoaded) {
-                  var list = state.customers;
-                  if (_searchQuery.isNotEmpty) {
-                    list = list
-                        .where((c) =>
-                            c.name.toLowerCase().contains(_searchQuery) ||
-                            c.phone.contains(_searchQuery))
-                        .toList();
-                  }
+          // Customer List - Dynamic height up to 5 items, rest scrollable
+          BlocBuilder<CustomersBloc, CustomersState>(
+            builder: (context, state) {
+              if (state is CustomersLoaded) {
+                var list = state.customers;
+                if (_searchQuery.isNotEmpty) {
+                  list = list
+                      .where((c) =>
+                          c.name.toLowerCase().contains(_searchQuery) ||
+                          c.phone.contains(_searchQuery))
+                      .toList();
+                }
 
-                  if (list.isEmpty) {
-                    return const Center(
+                if (list.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
                       child: Text(
                         'No customers found',
                         style: TextStyle(color: AppColors.textSecondary),
                       ),
-                    );
-                  }
+                    ),
+                  );
+                }
 
-                  return ListView.separated(
+                // Max height for ~5 customer items (~56px per item)
+                const double maxListHeight = 284.0;
+
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: maxListHeight),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const ClampingScrollPhysics(),
                     itemCount: list.length,
                     separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF3F4F6)),
                     itemBuilder: (context, index) {
@@ -216,11 +229,14 @@ class _CustomerPickerModalState extends State<_CustomerPickerModal> {
                         ),
                       );
                     },
-                  );
-                }
-                return const Center(child: CircularProgressIndicator());
-              },
-            ),
+                  ),
+                );
+              }
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            },
           ),
         ],
       ),

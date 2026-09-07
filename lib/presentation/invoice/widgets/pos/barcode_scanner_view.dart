@@ -18,7 +18,6 @@ class BarcodeScannerView extends StatefulWidget {
 class _BarcodeScannerViewState extends State<BarcodeScannerView> with SingleTickerProviderStateMixin {
   late MobileScannerController _scannerController;
   bool _isTorchOn = false;
-  bool _isFrontCamera = false;
   bool _isProcessingScan = false;
   late AnimationController _animController;
   late Animation<double> _scanLineAnimation;
@@ -71,13 +70,6 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> with SingleTick
     _scannerController.toggleTorch();
     setState(() {
       _isTorchOn = !_isTorchOn;
-    });
-  }
-
-  void _toggleCamera() {
-    _scannerController.switchCamera();
-    setState(() {
-      _isFrontCamera = !_isFrontCamera;
     });
   }
 
@@ -172,35 +164,6 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> with SingleTick
                           const SizedBox(width: 4),
                           Text(
                             _isTorchOn ? 'Flash ON' : 'Flash OFF',
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-
-                  // Camera Control Pill
-                  GestureDetector(
-                    onTap: _toggleCamera,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.65),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _isFrontCamera ? Icons.camera_front : Icons.camera_rear,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _isFrontCamera ? 'Cam Front' : 'Cam Rear',
                             style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
                           ),
                         ],

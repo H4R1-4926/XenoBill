@@ -138,7 +138,9 @@ class _RegisterPageState extends State<RegisterPage> {
 
     // 2. Dispatch Business Bloc Update & AppDatabase
     AppDatabase.instance.isBusinessConfigured = true;
+    AppDatabase.instance.isLoggedIn = true;
     AppDatabase.instance.currentBusiness = newBiz;
+    AppDatabase.instance.saveLocalState();
     context.read<BusinessBloc>().add(UpdateBusinessEvent(newBiz));
 
     // 3. Dispatch Supabase Auth Registration
@@ -210,16 +212,11 @@ class _RegisterPageState extends State<RegisterPage> {
               );
             } else if (state is Authenticated) {
               AppDatabase.instance.isLoggedIn = true;
+              AppDatabase.instance.saveLocalState();
               context.go(RouteConstants.home);
             } else if (state is EmailVerificationRequired) {
               AppDatabase.instance.isLoggedIn = true;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Verification email sent to ${state.email}. Please verify before logging in.'),
-                  duration: const Duration(seconds: 5),
-                  backgroundColor: Colors.blue,
-                ),
-              );
+              AppDatabase.instance.saveLocalState();
               context.go(RouteConstants.home);
             }
           },

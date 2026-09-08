@@ -131,6 +131,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     await _authRepository.signOut();
     AppDatabase.instance.isLoggedIn = false;
     AppDatabase.instance.isDemoMode = false;
+    await AppDatabase.instance.saveLocalState();
     emit(const Unauthenticated());
   }
 

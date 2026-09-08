@@ -5,7 +5,7 @@ import '../../../core/constants/route_constants.dart';
 import '../../../application/auth/auth_bloc.dart';
 import '../../../application/auth/auth_event.dart';
 import '../../../application/auth/auth_state.dart';
-import '../../../application/business/business_bloc.dart';
+import '../../../infrastructure/database/app_database.dart';
 import 'forgot_password_page.dart';
 
 class WelcomePage extends StatefulWidget {
@@ -76,6 +76,8 @@ class _WelcomePageState extends State<WelcomePage> {
                 ),
               );
             } else if (state is Authenticated) {
+              AppDatabase.instance.isLoggedIn = true;
+              AppDatabase.instance.saveLocalState();
               context.go(RouteConstants.home);
             } else if (state is EmailVerificationRequired) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -285,51 +287,6 @@ class _WelcomePageState extends State<WelcomePage> {
                   ),
                   const SizedBox(height: 14),
 
-                  // 3rd Button: Start Demo (Outlined Pill with Arrow ->)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        context.read<BusinessBloc>().add(const ToggleDemoModeEvent(true));
-                        context.go(RouteConstants.home);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF334155), width: 1.2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Start Demo ',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Icon(Icons.arrow_forward, size: 18, color: Colors.white),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // 5. FOOTER CAPTION
-                  const Center(
-                    child: Text(
-                      'Demo mode uses sample data — nothing is saved',
-                      style: TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ),
                   const SizedBox(height: 16),
                 ],
               ),

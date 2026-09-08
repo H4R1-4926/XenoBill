@@ -35,12 +35,9 @@ class AppDatabase {
 
     final prefs = await SharedPreferences.getInstance();
 
-    // Reset demo mode on cold start so the application presents the Auth screen
     isDemoMode = false;
-    isLoggedIn = false;
+    isLoggedIn = prefs.getBool('is_logged_in') ?? false;
     isBusinessConfigured = prefs.getBool('is_business_configured') ?? false;
-
-
 
     final invSettingsStr = prefs.getString('invoice_settings_json');
     if (invSettingsStr != null) {
@@ -49,9 +46,7 @@ class AppDatabase {
       } catch (_) {}
     }
 
-    if (isDemoMode) {
-      loadDemoData();
-    } else if (isBusinessConfigured) {
+    if (isBusinessConfigured) {
       await _loadLocalData(prefs);
     } else {
       currentBusiness = null;
@@ -67,307 +62,15 @@ class AppDatabase {
   }
 
   void loadDemoData() {
-    isDemoMode = true;
+    isDemoMode = false;
     isLoggedIn = true;
     isBusinessConfigured = true;
-    currentBusiness = Business(
-      id: 'biz_demo_1',
-      name: 'Demo Store & Services',
-      businessType: BusinessType.retail,
-      phone: '9876543210',
-      email: 'demo@xenobiz.com',
-      address: 'Demo Market, Station Road',
-      gstEnabled: true,
-      gstin: '27AABCU9603R1ZM',
-      currency: '₹',
-      invoicePrefix: 'INV',
-      nextInvoiceNumber: 1027,
-      features: BusinessType.retail.defaultFeatures,
-    );
-    items = [
-      const Item(
-        id: 'p1',
-        businessId: 'biz_demo_1',
-        type: ItemType.product,
-        name: 'Basmati Rice 5kg',
-        sku: 'RICE005',
-        barcode: '8901030826404',
-        category: 'Groceries',
-        unit: 'Bag',
-        sellingPrice: 320.0,
-        purchasePrice: 280.0,
-        mrp: 340.0,
-        gstRate: 5.0,
-        currentStock: 24,
-        lowStockLimit: 10,
-      ),
-      const Item(
-        id: 'p2',
-        businessId: 'biz_demo_1',
-        type: ItemType.product,
-        name: 'Fortune Sunflower Oil 1L',
-        sku: 'OIL001',
-        barcode: '8901234567890',
-        category: 'Groceries',
-        unit: 'Bottle',
-        sellingPrice: 165.0,
-        purchasePrice: 140.0,
-        mrp: 180.0,
-        gstRate: 5.0,
-        currentStock: 15,
-        lowStockLimit: 5,
-      ),
-      const Item(
-        id: 's1',
-        businessId: 'biz_demo_1',
-        type: ItemType.service,
-        name: 'Home Delivery Service',
-        sku: 'SERV01',
-        category: 'Services',
-        unit: 'Service',
-        sellingPrice: 50.0,
-        purchasePrice: 0.0,
-        gstRate: 18.0,
-        durationMinutes: 30,
-      ),
-    ];
-    customers = [
-      const Customer(
-        id: 'c1',
-        businessId: 'biz_demo_1',
-        name: 'Hari',
-        phone: '+91 40259294662',
-        email: 'hari@example.com',
-        address: 'Flat 102, Lake View Apartments',
-        gstin: '',
-        outstandingBalance: 2500.0,
-        totalInvoices: 12,
-      ),
-    ];
-    invoices = [
-      Invoice(
-        id: 'inv_1026',
-        businessId: 'biz_demo_1',
-        invoiceNumber: 'INV-1026',
-        invoiceDate: DateTime.now().subtract(const Duration(hours: 2)),
-        customerId: 'c1',
-        customerName: 'Hari',
-        customerPhone: '+91 40259294662',
-        items: const [
-          InvoiceItem(
-            id: 'item_1',
-            productId: 'p1',
-            productName: 'Basmati Rice 5kg',
-            quantity: 3,
-            unitPrice: 320.0,
-            discountAmount: 0.0,
-            gstRate: 5.0,
-            taxAmount: 48.0,
-            totalAmount: 1008.0,
-          ),
-          InvoiceItem(
-            id: 'item_2',
-            productId: 's1',
-            productName: 'Home Delivery Service',
-            quantity: 1,
-            unitPrice: 50.0,
-            discountAmount: 0.0,
-            gstRate: 18.0,
-            taxAmount: 9.0,
-            totalAmount: 59.0,
-          ),
-        ],
-        subtotal: 1010.0,
-        discount: 0.0,
-        cgst: 28.5,
-        sgst: 28.5,
-        igst: 0.0,
-        grandTotal: 1134.0,
-        paymentType: PaymentType.credit,
-        paidAmount: 500.0,
-        dueAmount: 634.0,
-        status: InvoiceStatus.partial,
-      ),
-      Invoice(
-        id: 'inv_1021',
-        businessId: 'biz_demo_1',
-        invoiceNumber: 'INV-1021',
-        invoiceDate: DateTime.now().subtract(const Duration(days: 4)),
-        customerId: 'c1',
-        customerName: 'Hari',
-        customerPhone: '+91 40259294662',
-        items: const [
-          InvoiceItem(
-            id: 'item_3',
-            productId: 'p2',
-            productName: 'Fortune Sunflower Oil 1L',
-            quantity: 5,
-            unitPrice: 165.0,
-            discountAmount: 25.0,
-            gstRate: 5.0,
-            taxAmount: 40.0,
-            totalAmount: 840.0,
-          ),
-        ],
-        subtotal: 800.0,
-        discount: 0.0,
-        cgst: 25.0,
-        sgst: 25.0,
-        igst: 0.0,
-        grandTotal: 850.0,
-        paymentType: PaymentType.credit,
-        paidAmount: 850.0,
-        dueAmount: 0.0,
-        status: InvoiceStatus.paid,
-      ),
-      Invoice(
-        id: 'inv_1010',
-        businessId: 'biz_demo_1',
-        invoiceNumber: 'INV-1010',
-        invoiceDate: DateTime(2026, 1, 12, 10, 0),
-        customerId: 'c1',
-        customerName: 'Hari',
-        customerPhone: '+91 40259294662',
-        items: const [
-          InvoiceItem(
-            id: 'item_4',
-            productId: 'p1',
-            productName: 'Basmati Rice 5kg',
-            quantity: 20,
-            unitPrice: 320.0,
-            discountAmount: 0.0,
-            gstRate: 5.0,
-            taxAmount: 320.0,
-            totalAmount: 6516.0,
-          ),
-        ],
-        subtotal: 6200.0,
-        discount: 0.0,
-        cgst: 158.0,
-        sgst: 158.0,
-        igst: 0.0,
-        grandTotal: 6516.0,
-        paymentType: PaymentType.credit,
-        paidAmount: 4650.0,
-        dueAmount: 1866.0,
-        status: InvoiceStatus.partial,
-      ),
-    ];
-    customerPayments = [
-      CustomerPayment(
-        id: 'pay_1',
-        customerId: 'c1',
-        customerName: 'Hari',
-        amount: 500.0,
-        paymentMethod: 'Cash',
-        paymentDate: DateTime.now().subtract(const Duration(days: 2)),
-        referenceNote: 'Cash received on partial bill',
-        allocatedInvoiceId: 'inv_1026',
-      ),
-      CustomerPayment(
-        id: 'pay_2',
-        customerId: 'c1',
-        customerName: 'Hari',
-        amount: 850.0,
-        paymentMethod: 'UPI',
-        paymentDate: DateTime.now().subtract(const Duration(days: 7)),
-        referenceNote: 'UPI12345',
-        allocatedInvoiceId: 'inv_1021',
-      ),
-      CustomerPayment(
-        id: 'pay_3',
-        customerId: 'c1',
-        customerName: 'Hari',
-        amount: 4650.0,
-        paymentMethod: 'Bank Transfer',
-        paymentDate: DateTime(2026, 8, 15, 14, 0),
-        referenceNote: 'NEFT transfer',
-        allocatedInvoiceId: 'inv_1010',
-      ),
-    ];
-    final now = DateTime.now();
-    expenses = [
-      Expense(
-        id: 'exp_1',
-        businessId: 'biz_demo_1',
-        category: 'Utilities',
-        title: 'Electricity bill',
-        description: 'Monthly commercial electricity bill',
-        amount: 1200.0,
-        date: DateTime(now.year, now.month, now.day, 11, 20),
-        paymentMethod: 'Cash',
-      ),
-      Expense(
-        id: 'exp_2',
-        businessId: 'biz_demo_1',
-        category: 'Transport',
-        title: 'Auto fare — supplier pickup',
-        description: 'Transport for stock',
-        amount: 250.0,
-        date: DateTime(now.year, now.month, now.day, 10, 5),
-        paymentMethod: 'Cash',
-      ),
-      Expense(
-        id: 'exp_3',
-        businessId: 'biz_demo_1',
-        category: 'Supplies',
-        title: 'Packing covers — 2 boxes',
-        description: 'Packaging materials',
-        amount: 400.0,
-        date: DateTime(now.year, now.month, now.day, 9, 40),
-        paymentMethod: 'UPI',
-      ),
-      Expense(
-        id: 'exp_4',
-        businessId: 'biz_demo_1',
-        category: 'Rent',
-        title: 'Shop Rent',
-        description: 'Monthly store building rent',
-        amount: 15000.0,
-        date: DateTime(now.year, now.month, 1, 10, 0),
-        paymentMethod: 'Bank Transfer',
-      ),
-      Expense(
-        id: 'exp_5',
-        businessId: 'biz_demo_1',
-        category: 'Salaries',
-        title: 'Staff Salaries',
-        description: 'Helper salaries',
-        amount: 12000.0,
-        date: DateTime(now.year, now.month, 2, 17, 30),
-        paymentMethod: 'Bank Transfer',
-      ),
-      Expense(
-        id: 'exp_6',
-        businessId: 'biz_demo_1',
-        category: 'Utilities',
-        title: 'Internet & WiFi Bill',
-        description: 'Fiber broadband',
-        amount: 3400.0,
-        date: DateTime(now.year, now.month, 3, 14, 15),
-        paymentMethod: 'UPI',
-      ),
-      Expense(
-        id: 'exp_7',
-        businessId: 'biz_demo_1',
-        category: 'Supplies',
-        title: 'Thermal Paper Rolls',
-        description: '80mm receipt paper',
-        amount: 3540.0,
-        date: DateTime(now.year, now.month, 4, 16, 0),
-        paymentMethod: 'UPI',
-      ),
-      Expense(
-        id: 'exp_8',
-        businessId: 'biz_demo_1',
-        category: 'Other',
-        title: 'Miscellaneous Repairs',
-        description: 'Store maintenance',
-        amount: 2700.0,
-        date: DateTime(now.year, now.month, 4, 18, 0),
-        paymentMethod: 'Cash',
-      ),
-    ];
+    currentBusiness = null;
+    items = [];
+    customers = [];
+    invoices = [];
+    customerPayments = [];
+    expenses = [];
     smartInsights = [];
   }
 

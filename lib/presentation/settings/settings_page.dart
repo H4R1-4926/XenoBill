@@ -236,7 +236,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           _buildRecentChip(
                             icon: Icons.cloud_sync_outlined,
                             label: 'Backup & Restore',
-                            onTap: () => BackupRestoreModal.show(context, isDemo),
+                            onTap: () => context.push(RouteConstants.backupRestore),
                           ),
                           _buildRecentChip(
                             icon: Icons.bar_chart_rounded,
@@ -356,7 +356,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           iconBackgroundColor: const Color(0xFFE0F2FE),
                           title: 'Backup & Restore',
                           subtitle: 'Backup your data or restore a previous backup',
-                          onTap: () => BackupRestoreModal.show(context, isDemo),
+                          onTap: () => context.push(RouteConstants.backupRestore),
                         ),
                       ],
                     ),
@@ -507,7 +507,7 @@ class _SettingsPageState extends State<SettingsPage> {
         'title': 'Backup & Restore',
         'sub': 'Backup your data or restore a previous backup',
         'icon': Icons.cloud_sync_outlined,
-        'action': () => BackupRestoreModal.show(context, isDemo),
+        'action': () => context.push(RouteConstants.backupRestore),
       },
       {
         'title': 'App Theme',

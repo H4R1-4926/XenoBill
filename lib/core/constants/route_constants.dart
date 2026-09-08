@@ -24,6 +24,7 @@ class RouteConstants {
   static const String businessSettings = '/settings/business';
   static const String editBusinessProfile = '/settings/business/profile';
   static const String gstSettings = '/settings/business/gst';
+  static const String backupRestore = '/settings/backup-restore';
 }
 
 class StorageConstants {

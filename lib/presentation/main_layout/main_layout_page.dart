@@ -7,6 +7,9 @@ import '../../application/business/business_bloc.dart';
 import '../../domain/entities/business.dart';
 import '../navigation/xenobiz_bottom_navigation_bar.dart';
 
+import 'package:flutter/services.dart';
+import '../../infrastructure/services/backup_service.dart';
+
 class MainLayoutPage extends StatelessWidget {
   final Widget child;
   final GoRouterState? state;
@@ -54,101 +57,149 @@ class MainLayoutPage extends StatelessWidget {
     }
   }
 
+  Future<void> _handleAppExit(BuildContext context) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Exit Xenobill?'),
+        content: const Text(
+          'Would you like to create a local database backup before closing the app?',
+        ),
+        actionsAlignment: MainAxisAlignment.end,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'exit_no_backup'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Exit Without Backup'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, 'backup_and_exit'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Backup & Exit'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == 'exit_no_backup') {
+      SystemNavigator.pop();
+    } else if (result == 'backup_and_exit') {
+      try {
+        await BackupService.instance.createLocalBackup();
+      } catch (_) {}
+      SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedIndex = _calculateSelectedIndex(context);
     final isDesktop = MediaQuery.of(context).size.width >= 900;
 
-    return BlocBuilder<BusinessBloc, BusinessState>(
-      builder: (context, bizState) {
-        Business? business;
-        if (bizState is BusinessLoaded) {
-          business = bizState.business;
-        }
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleAppExit(context);
+      },
+      child: BlocBuilder<BusinessBloc, BusinessState>(
+        builder: (context, bizState) {
+          Business? business;
+          if (bizState is BusinessLoaded) {
+            business = bizState.business;
+          }
 
-        final inventoryLabel = business?.terminology.inventory ?? 'Inventory';
-        const inventoryIcon = Icons.inventory_2_outlined;
+          final inventoryLabel = business?.terminology.inventory ?? 'Inventory';
+          const inventoryIcon = Icons.inventory_2_outlined;
 
-        if (isDesktop) {
-          return Scaffold(
-            body: Row(
-              children: [
-                // Responsive Side Navigation for Desktop
-                Material(
-                  color: AppColors.deepNavy,
-                  child: Container(
-                    width: 240,
-                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: AppColors.brightCyan,
-                                shape: BoxShape.circle,
+          if (isDesktop) {
+            return Scaffold(
+              body: Row(
+                children: [
+                  // Responsive Side Navigation for Desktop
+                  Material(
+                    color: AppColors.deepNavy,
+                    child: Container(
+                      width: 240,
+                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.brightCyan,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.receipt_long, color: AppColors.deepNavy, size: 24),
                               ),
-                              child: const Icon(Icons.receipt_long, color: AppColors.deepNavy, size: 24),
-                            ),
-                            const SizedBox(width: 12),
-                            const Text(
-                              'XENOBIZ',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20,
-                                letterSpacing: 1.5,
+                              const SizedBox(width: 12),
+                              const Text(
+                                'XENOBIZ',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                  letterSpacing: 1.5,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
-                        // CTA Add Invoice
-                        SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: ElevatedButton.icon(
-                            onPressed: () => context.push(RouteConstants.addInvoice),
-                            icon: const Icon(Icons.add, color: AppColors.deepNavy, size: 24),
-                            label: Text(
-                              '+ ${business?.terminology.addInvoice.toUpperCase() ?? 'ADD INVOICE'}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.deepNavy, fontSize: 14),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brightCyan,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          // CTA Add Invoice
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton.icon(
+                              onPressed: () => context.push(RouteConstants.addInvoice),
+                              icon: const Icon(Icons.add, color: AppColors.deepNavy, size: 24),
+                              label: Text(
+                                '+ ${business?.terminology.addInvoice.toUpperCase() ?? 'ADD INVOICE'}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.deepNavy, fontSize: 14),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.brightCyan,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        _buildNavTile(Icons.dashboard_outlined, Icons.dashboard, 'Home', selectedIndex == 0, () => _onItemTapped(0, context)),
-                        _buildNavTile(Icons.receipt_outlined, Icons.receipt, 'Sales', selectedIndex == 1, () => _onItemTapped(1, context)),
-                        _buildNavTile(inventoryIcon, inventoryIcon, inventoryLabel, selectedIndex == 3, () => _onItemTapped(3, context)),
-                        _buildNavTile(Icons.more_horiz_rounded, Icons.more_horiz_rounded, 'More', selectedIndex == 4, () => _onItemTapped(4, context)),
-                      ],
+                          const SizedBox(height: 32),
+                          _buildNavTile(Icons.dashboard_outlined, Icons.dashboard, 'Home', selectedIndex == 0, () => _onItemTapped(0, context)),
+                          _buildNavTile(Icons.receipt_outlined, Icons.receipt, 'Sales', selectedIndex == 1, () => _onItemTapped(1, context)),
+                          _buildNavTile(inventoryIcon, inventoryIcon, inventoryLabel, selectedIndex == 3, () => _onItemTapped(3, context)),
+                          _buildNavTile(Icons.more_horiz_rounded, Icons.more_horiz_rounded, 'More', selectedIndex == 4, () => _onItemTapped(4, context)),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                Expanded(child: child),
-              ],
+                  Expanded(child: child),
+                ],
+              ),
+            );
+          }
+
+          // Mobile / Tablet Bottom Navigation Layout
+          return Scaffold(
+            body: child,
+            extendBody: false,
+            bottomNavigationBar: XenobizBottomNavigationBar(
+              selectedIndex: selectedIndex,
+              onItemTapped: (index) => _onItemTapped(index, context),
+              inventoryLabel: inventoryLabel,
+              inventoryIcon: inventoryIcon,
+              inventorySelectedIcon: Icons.inventory_2,
             ),
           );
-        }
-
-        // Mobile / Tablet Bottom Navigation Layout
-        return Scaffold(
-          body: child,
-          extendBody: false,
-          bottomNavigationBar: XenobizBottomNavigationBar(
-            selectedIndex: selectedIndex,
-            onItemTapped: (index) => _onItemTapped(index, context),
-            inventoryLabel: inventoryLabel,
-            inventoryIcon: inventoryIcon,
-            inventorySelectedIcon: Icons.inventory_2,
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 

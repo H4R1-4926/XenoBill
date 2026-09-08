@@ -28,6 +28,7 @@ import '../../presentation/settings/pages/business_settings_page.dart';
 import '../../presentation/settings/pages/business_profile_edit_page.dart';
 import '../../presentation/settings/pages/gst_settings_page.dart';
 import '../../presentation/settings/pages/invoice_settings_page.dart';
+import '../../presentation/settings/pages/backup_restore_page.dart';
 import '../../presentation/expenses/expenses_page.dart';
 import '../../presentation/smart/smart_insights_page.dart';
 import '../../presentation/customers/pages/customer_profile_page.dart';
@@ -173,6 +174,11 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         path: RouteConstants.invoiceSettings,
         builder: (context, state) => const InvoiceSettingsPage(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: RouteConstants.backupRestore,
+        builder: (context, state) => const BackupRestorePage(),
       ),
       // Main Shell Route with Floating Navigation Bar
       ShellRoute(

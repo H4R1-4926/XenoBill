@@ -529,19 +529,141 @@ class AppDatabase {
 
   String exportBackupJson() {
     final map = {
-      'business': {
-        'name': currentBusiness?.name,
-        'type': currentBusiness?.businessType,
-        'phone': currentBusiness?.phone,
-        'address': currentBusiness?.address,
-        'gstin': currentBusiness?.gstin,
+      'business': currentBusiness == null ? null : {
+        'id': currentBusiness!.id,
+        'name': currentBusiness!.name,
+        'businessType': currentBusiness!.type.name,
+        'phone': currentBusiness!.phone,
+        'address': currentBusiness!.address,
+        'gstEnabled': currentBusiness!.gstEnabled,
+        'gstin': currentBusiness!.gstin,
+        'invoicePrefix': currentBusiness!.invoicePrefix,
+        'nextInvoiceNumber': currentBusiness!.nextInvoiceNumber,
+        'features': currentBusiness!.features.toJson(),
       },
-      'itemsCount': items.length,
-      'customersCount': customers.length,
-      'invoicesCount': invoices.length,
-      'expensesCount': expenses.length,
+      'invoiceDisplaySettings': invoiceDisplaySettings.toJsonString(),
+      'items': items.map((i) => {
+        'id': i.id,
+        'businessId': i.businessId,
+        'type': i.type.name,
+        'name': i.name,
+        'description': i.description,
+        'sku': i.sku,
+        'barcode': i.barcode,
+        'category': i.category,
+        'unit': i.unit,
+        'sellingPrice': i.sellingPrice,
+        'purchasePrice': i.purchasePrice,
+        'mrp': i.mrp,
+        'gstRate': i.gstRate,
+        'isTaxable': i.isTaxable,
+        'currentStock': i.currentStock,
+        'lowStockLimit': i.lowStockLimit,
+        'durationMinutes': i.durationMinutes,
+        'isActive': i.isActive,
+      }).toList(),
+      'customers': customers.map((c) => {
+        'id': c.id,
+        'businessId': c.businessId,
+        'name': c.name,
+        'phone': c.phone,
+        'email': c.email,
+        'address': c.address,
+        'gstin': c.gstin,
+        'outstandingBalance': c.outstandingBalance,
+        'totalInvoices': c.totalInvoices,
+      }).toList(),
       'exportedAt': DateTime.now().toIso8601String(),
     };
     return jsonEncode(map);
   }
+
+  List<int> exportBinDatabase() {
+    final jsonStr = exportBackupJson();
+    return utf8.encode(jsonStr);
+  }
+
+  Future<bool> importBinDatabase(List<int> bytes) async {
+    try {
+      final jsonStr = utf8.decode(bytes);
+      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+
+      if (map.containsKey('business') && map['business'] != null) {
+        final bizMap = map['business'] as Map<String, dynamic>;
+        final bType = BusinessType.fromString(bizMap['businessType']?.toString() ?? 'retail');
+        final featuresMap = bizMap['features'] as Map<String, dynamic>?;
+        final features = featuresMap != null ? BusinessFeatures.fromJson(featuresMap) : bType.defaultFeatures;
+
+        currentBusiness = Business(
+          id: bizMap['id'] ?? 'biz_real_1',
+          name: bizMap['name'] ?? 'My Business',
+          businessType: bType,
+          phone: bizMap['phone'] ?? '',
+          address: bizMap['address'] ?? '',
+          gstEnabled: bizMap['gstEnabled'] ?? true,
+          gstin: bizMap['gstin'] ?? '',
+          invoicePrefix: bizMap['invoicePrefix'] ?? 'INV',
+          nextInvoiceNumber: bizMap['nextInvoiceNumber'] ?? 1001,
+          features: features,
+        );
+        isBusinessConfigured = true;
+        isLoggedIn = true;
+      }
+
+      if (map.containsKey('invoiceDisplaySettings') && map['invoiceDisplaySettings'] != null) {
+        try {
+          invoiceDisplaySettings = InvoiceDisplaySettings.fromJsonString(map['invoiceDisplaySettings']);
+        } catch (_) {}
+      }
+
+      if (map.containsKey('items') && map['items'] is List) {
+        final List<dynamic> list = map['items'];
+        items = list.map((itemMap) {
+          final tStr = itemMap['type'] ?? 'product';
+          final type = tStr == 'service' ? ItemType.service : (tStr == 'roomCharge' ? ItemType.roomCharge : ItemType.product);
+          return Item(
+            id: itemMap['id'],
+            businessId: itemMap['businessId'] ?? currentBusiness?.id ?? 'biz_real_1',
+            type: type,
+            name: itemMap['name'],
+            description: itemMap['description'] ?? '',
+            sku: itemMap['sku'] ?? '',
+            barcode: itemMap['barcode'] ?? '',
+            category: itemMap['category'] ?? 'General',
+            unit: itemMap['unit'] ?? 'Unit',
+            sellingPrice: ((itemMap['sellingPrice'] ?? 0.0) as num).toDouble(),
+            purchasePrice: ((itemMap['purchasePrice'] ?? 0.0) as num).toDouble(),
+            mrp: ((itemMap['mrp'] ?? 0.0) as num).toDouble(),
+            gstRate: ((itemMap['gstRate'] ?? 5.0) as num).toDouble(),
+            isTaxable: itemMap['isTaxable'] ?? true,
+            currentStock: itemMap['currentStock'] ?? 0,
+            lowStockLimit: itemMap['lowStockLimit'] ?? 5,
+            durationMinutes: itemMap['durationMinutes'] ?? 0,
+            isActive: itemMap['isActive'] ?? true,
+          );
+        }).toList();
+      }
+
+      if (map.containsKey('customers') && map['customers'] is List) {
+        final List<dynamic> list = map['customers'];
+        customers = list.map((cMap) => Customer(
+          id: cMap['id'],
+          businessId: cMap['businessId'] ?? currentBusiness?.id ?? 'biz_real_1',
+          name: cMap['name'],
+          phone: cMap['phone'] ?? '',
+          email: cMap['email'] ?? '',
+          address: cMap['address'] ?? '',
+          gstin: cMap['gstin'] ?? '',
+          outstandingBalance: ((cMap['outstandingBalance'] ?? 0.0) as num).toDouble(),
+          totalInvoices: cMap['totalInvoices'] ?? 0,
+        )).toList();
+      }
+
+      await saveLocalState();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
 }
+

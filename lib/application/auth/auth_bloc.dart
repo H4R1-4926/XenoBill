@@ -36,22 +36,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final session = _authRepository.currentSession;
 
     if (session != null && user != null) {
-      if (!user.isEmailVerified && !AppDatabase.instance.isDemoMode) {
-        // If email confirmation is strictly required in project config
-        // emit(EmailVerificationRequired(user.email));
-      }
-      AppDatabase.instance.isLoggedIn = true;
+      await AppDatabase.instance.setActiveUser(user.id);
       emit(Authenticated(user));
-    } else if (AppDatabase.instance.isDemoMode && AppDatabase.instance.isLoggedIn) {
-      // Preserve offline demo mode exploration
-      emit(const Authenticated(AuthUser(
-        id: 'demo_user',
-        email: 'demo@xenobiz.com',
-        name: 'Demo User',
+    } else if (AppDatabase.instance.isLoggedIn && AppDatabase.instance.activeUserId != null) {
+      await AppDatabase.instance.loadAccountData(AppDatabase.instance.activeUserId!);
+      emit(Authenticated(AuthUser(
+        id: AppDatabase.instance.activeUserId!,
+        email: AppDatabase.instance.currentBusiness?.email ?? 'user@xenobiz.internal',
+        name: AppDatabase.instance.currentBusiness?.name ?? 'User',
         isEmailVerified: true,
       )));
     } else {
-      AppDatabase.instance.isLoggedIn = false;
+      await AppDatabase.instance.clearActiveSessionOnLogout();
       emit(const Unauthenticated());
     }
   }
@@ -67,9 +63,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         password: event.password,
       );
 
-      AppDatabase.instance.isDemoMode = false;
-      AppDatabase.instance.isLoggedIn = true;
-
+      await AppDatabase.instance.setActiveUser(user.id);
       emit(Authenticated(user));
     } on AuthFailure catch (e) {
       emit(AuthenticationError(e.message));
@@ -91,11 +85,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       if (user != null) {
-        AppDatabase.instance.isDemoMode = false;
+        await AppDatabase.instance.setActiveUser(user.id);
         if (!user.isEmailVerified && _authRepository.currentSession == null) {
           emit(EmailVerificationRequired(user.email));
         } else {
-          AppDatabase.instance.isLoggedIn = true;
           emit(Authenticated(user));
         }
       } else {
@@ -129,16 +122,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(const AuthLoading());
     await _authRepository.signOut();
-    AppDatabase.instance.isLoggedIn = false;
-    AppDatabase.instance.isDemoMode = false;
-    await AppDatabase.instance.saveLocalState();
+    await AppDatabase.instance.clearActiveSessionOnLogout();
     emit(const Unauthenticated());
   }
 
   void _onAuthSessionStateChanged(
     AuthSessionStateChanged event,
     Emitter<AuthState> emit,
-  ) {
+  ) async {
     final eventType = event.sessionState.event;
     debugPrint('[AuthBloc] AuthStateChanged event: $eventType');
 
@@ -148,12 +139,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       case AuthChangeEvent.userUpdated:
         final user = _authRepository.currentUser;
         if (user != null) {
-          AppDatabase.instance.isLoggedIn = true;
+          await AppDatabase.instance.setActiveUser(user.id);
           emit(Authenticated(user));
         }
         break;
       case AuthChangeEvent.signedOut:
-        AppDatabase.instance.isLoggedIn = false;
+        await AppDatabase.instance.clearActiveSessionOnLogout();
         emit(const Unauthenticated());
         break;
       case AuthChangeEvent.passwordRecovery:

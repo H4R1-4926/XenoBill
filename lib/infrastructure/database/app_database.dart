@@ -9,7 +9,6 @@ import '../../domain/entities/customer_payment.dart';
 import '../../domain/entities/invoice.dart';
 import '../../domain/entities/expense.dart';
 import '../../domain/entities/smart_insight.dart';
-
 import '../../domain/entities/invoice_display_settings.dart';
 
 class AppDatabase {
@@ -20,6 +19,7 @@ class AppDatabase {
   bool isDemoMode = false;
   bool isLoggedIn = false;
   bool isBusinessConfigured = false;
+  String? activeUserId;
 
   Business? currentBusiness;
   InvoiceDisplaySettings invoiceDisplaySettings = const InvoiceDisplaySettings();
@@ -37,41 +37,228 @@ class AppDatabase {
 
     isDemoMode = false;
     isLoggedIn = prefs.getBool('is_logged_in') ?? false;
-    isBusinessConfigured = prefs.getBool('is_business_configured') ?? false;
+    activeUserId = prefs.getString('active_user_id');
 
-    final invSettingsStr = prefs.getString('invoice_settings_json');
+    if (isLoggedIn && activeUserId != null && activeUserId!.isNotEmpty) {
+      await loadAccountData(activeUserId!);
+    } else {
+      clearMemoryState();
+    }
+
+    _initialized = true;
+  }
+
+  /// Sets active user account and loads user-scoped local data
+  Future<void> setActiveUser(String userId) async {
+    activeUserId = userId;
+    isLoggedIn = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('active_user_id', userId);
+    await prefs.setBool('is_logged_in', true);
+
+    await loadAccountData(userId);
+  }
+
+  /// Loads account-isolated local data for given userId
+  Future<void> loadAccountData(String userId) async {
+    activeUserId = userId;
+    final prefs = await SharedPreferences.getInstance();
+
+    final userBizKey = 'user_${userId}_business_json';
+    final userItemsKey = 'user_${userId}_items_json';
+    final userCustKey = 'user_${userId}_customers_json';
+    final userInvKey = 'user_${userId}_invoices_json';
+    final userExpKey = 'user_${userId}_expenses_json';
+    final userConfiguredKey = 'user_${userId}_is_business_configured';
+
+    // MIGRATION: If legacy global un-scoped keys exist and user key doesn't, migrate them to this user
+    String? bizJson = prefs.getString(userBizKey);
+    String? itemsStr = prefs.getString(userItemsKey);
+    String? custStr = prefs.getString(userCustKey);
+    String? invStr = prefs.getString(userInvKey);
+    String? expStr = prefs.getString(userExpKey);
+
+    if (bizJson == null && prefs.containsKey('business_json')) {
+      bizJson = prefs.getString('business_json');
+      itemsStr = prefs.getString('real_items_json');
+      custStr = prefs.getString('real_customers_json');
+
+      if (bizJson != null) await prefs.setString(userBizKey, bizJson);
+      if (itemsStr != null) await prefs.setString(userItemsKey, itemsStr);
+      if (custStr != null) await prefs.setString(userCustKey, custStr);
+      await prefs.setBool(userConfiguredKey, true);
+
+      // Clean up legacy global keys to prevent cross-user leakage
+      await prefs.remove('business_json');
+      await prefs.remove('real_items_json');
+      await prefs.remove('real_customers_json');
+      await prefs.remove('is_business_configured');
+    }
+
+    isBusinessConfigured = prefs.getBool(userConfiguredKey) ?? (bizJson != null);
+
+    final invSettingsStr = prefs.getString('user_${userId}_invoice_settings_json') ?? prefs.getString('invoice_settings_json');
     if (invSettingsStr != null) {
       try {
         invoiceDisplaySettings = InvoiceDisplaySettings.fromJsonString(invSettingsStr);
       } catch (_) {}
     }
 
-    if (isBusinessConfigured) {
-      await _loadLocalData(prefs);
+    if (bizJson != null) {
+      try {
+        final map = jsonDecode(bizJson);
+        final bType = BusinessType.fromString(map['businessType']?.toString() ?? 'retail');
+        final featuresMap = map['features'] as Map<String, dynamic>?;
+        final features = featuresMap != null ? BusinessFeatures.fromJson(featuresMap) : bType.defaultFeatures;
+
+        currentBusiness = Business(
+          id: map['id'] ?? 'biz_$userId',
+          accountId: userId,
+          name: map['name'] ?? 'My Business',
+          businessType: bType,
+          phone: map['phone'] ?? '',
+          address: map['address'] ?? '',
+          gstEnabled: map['gstEnabled'] ?? true,
+          gstin: map['gstin'] ?? '',
+          invoicePrefix: map['invoicePrefix'] ?? 'INV',
+          nextInvoiceNumber: map['nextInvoiceNumber'] ?? 1001,
+          features: features,
+        );
+      } catch (_) {
+        currentBusiness = null;
+      }
     } else {
       currentBusiness = null;
-      items = [];
-      customers = [];
-      customerPayments = [];
-      invoices = [];
-      expenses = [];
-      smartInsights = [];
     }
 
-    _initialized = true;
+    // Load items
+    if (itemsStr != null) {
+      try {
+        final List<dynamic> list = jsonDecode(itemsStr);
+        items = list.map((itemMap) {
+          final tStr = itemMap['type'] ?? 'product';
+          final type = tStr == 'service' ? ItemType.service : (tStr == 'roomCharge' ? ItemType.roomCharge : ItemType.product);
+          return Item(
+            id: itemMap['id'],
+            businessId: itemMap['businessId'] ?? currentBusiness?.id ?? 'biz_$userId',
+            type: type,
+            name: itemMap['name'],
+            description: itemMap['description'] ?? '',
+            sku: itemMap['sku'] ?? '',
+            barcode: itemMap['barcode'] ?? '',
+            category: itemMap['category'] ?? 'General',
+            unit: itemMap['unit'] ?? 'Unit',
+            sellingPrice: ((itemMap['sellingPrice'] ?? 0.0) as num).toDouble(),
+            purchasePrice: ((itemMap['purchasePrice'] ?? 0.0) as num).toDouble(),
+            mrp: ((itemMap['mrp'] ?? 0.0) as num).toDouble(),
+            gstRate: ((itemMap['gstRate'] ?? 5.0) as num).toDouble(),
+            isTaxable: itemMap['isTaxable'] ?? true,
+            currentStock: itemMap['currentStock'] ?? 0,
+            lowStockLimit: itemMap['lowStockLimit'] ?? 5,
+            durationMinutes: itemMap['durationMinutes'] ?? 0,
+            isActive: itemMap['isActive'] ?? true,
+          );
+        }).toList();
+      } catch (_) {
+        items = [];
+      }
+    } else {
+      items = [];
+    }
+
+    // Load customers
+    if (custStr != null) {
+      try {
+        final List<dynamic> list = jsonDecode(custStr);
+        customers = list.map((cMap) => Customer(
+          id: cMap['id'],
+          businessId: cMap['businessId'] ?? currentBusiness?.id ?? 'biz_$userId',
+          name: cMap['name'],
+          phone: cMap['phone'] ?? '',
+          email: cMap['email'] ?? '',
+          address: cMap['address'] ?? '',
+          gstin: cMap['gstin'] ?? '',
+          outstandingBalance: ((cMap['outstandingBalance'] ?? 0.0) as num).toDouble(),
+          totalInvoices: cMap['totalInvoices'] ?? 0,
+        )).toList();
+      } catch (_) {
+        customers = [];
+      }
+    } else {
+      customers = [];
+    }
+
+    // Load invoices
+    if (invStr != null) {
+      try {
+        final List<dynamic> list = jsonDecode(invStr);
+        invoices = list.map((invMap) => Invoice(
+          id: invMap['id'] ?? '',
+          businessId: invMap['businessId'] ?? currentBusiness?.id ?? 'biz_$userId',
+          invoiceNumber: invMap['invoiceNumber'] ?? '',
+          invoiceDate: DateTime.tryParse(invMap['invoiceDate'] ?? '') ?? DateTime.now(),
+          customerId: invMap['customerId'] ?? '',
+          customerName: invMap['customerName'] ?? '',
+          customerPhone: invMap['customerPhone'] ?? '',
+          items: (invMap['items'] as List<dynamic>? ?? []).map((i) => InvoiceItem(
+            id: i['id'] ?? '',
+            productId: i['productId'] ?? '',
+            productName: i['productName'] ?? '',
+            quantity: i['quantity'] ?? 1,
+            unitPrice: ((i['unitPrice'] ?? 0.0) as num).toDouble(),
+            discountAmount: ((i['discountAmount'] ?? 0.0) as num).toDouble(),
+            gstRate: ((i['gstRate'] ?? 0.0) as num).toDouble(),
+            taxAmount: ((i['taxAmount'] ?? 0.0) as num).toDouble(),
+            totalAmount: ((i['totalAmount'] ?? 0.0) as num).toDouble(),
+          )).toList(),
+          subtotal: ((invMap['subtotal'] ?? 0.0) as num).toDouble(),
+          discount: ((invMap['discount'] ?? 0.0) as num).toDouble(),
+          cgst: ((invMap['cgst'] ?? 0.0) as num).toDouble(),
+          sgst: ((invMap['sgst'] ?? 0.0) as num).toDouble(),
+          igst: ((invMap['igst'] ?? 0.0) as num).toDouble(),
+          grandTotal: ((invMap['grandTotal'] ?? 0.0) as num).toDouble(),
+          paymentType: PaymentType.values.firstWhere((p) => p.name == invMap['paymentType'], orElse: () => PaymentType.cash),
+          paidAmount: ((invMap['paidAmount'] ?? 0.0) as num).toDouble(),
+          dueAmount: ((invMap['dueAmount'] ?? 0.0) as num).toDouble(),
+          status: InvoiceStatus.values.firstWhere((s) => s.name == invMap['status'], orElse: () => InvoiceStatus.paid),
+        )).toList();
+      } catch (_) {
+        invoices = [];
+      }
+    } else {
+      invoices = [];
+    }
+
+    // Load expenses
+    if (expStr != null) {
+      try {
+        final List<dynamic> list = jsonDecode(expStr);
+        expenses = list.map((eMap) => Expense(
+          id: eMap['id'] ?? '',
+          businessId: eMap['businessId'] ?? currentBusiness?.id ?? 'biz_$userId',
+          category: eMap['category'] ?? 'General',
+          title: eMap['title'] ?? '',
+          description: eMap['description'] ?? '',
+          amount: ((eMap['amount'] ?? 0.0) as num).toDouble(),
+          date: DateTime.tryParse(eMap['date'] ?? '') ?? DateTime.now(),
+          paymentMethod: eMap['paymentMethod'] ?? 'Cash',
+          reference: eMap['reference'] ?? '',
+          customerId: eMap['customerId'],
+          customerName: eMap['customerName'],
+        )).toList();
+      } catch (_) {
+        expenses = [];
+      }
+    } else {
+      expenses = [];
+    }
   }
 
   void loadDemoData() {
     isDemoMode = false;
     isLoggedIn = true;
     isBusinessConfigured = true;
-    currentBusiness = null;
-    items = [];
-    customers = [];
-    invoices = [];
-    customerPayments = [];
-    expenses = [];
-    smartInsights = [];
+    clearMemoryState();
   }
 
   Future<void> createNewBusiness(Business business) async {
@@ -88,146 +275,137 @@ class AppDatabase {
     await saveLocalState();
   }
 
+  /// Saves active user's local state isolated to activeUserId
   Future<void> saveLocalState() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_demo_mode', isDemoMode);
     await prefs.setBool('is_logged_in', isLoggedIn);
-    await prefs.setBool('is_business_configured', isBusinessConfigured);
-    await prefs.setString('invoice_settings_json', invoiceDisplaySettings.toJsonString());
 
-    if (!isDemoMode && currentBusiness != null) {
-      await prefs.setString('business_json', jsonEncode({
-        'id': currentBusiness!.id,
-        'name': currentBusiness!.name,
-        'businessType': currentBusiness!.type.name,
-        'phone': currentBusiness!.phone,
-        'address': currentBusiness!.address,
-        'gstEnabled': currentBusiness!.gstEnabled,
-        'gstin': currentBusiness!.gstin,
-        'invoicePrefix': currentBusiness!.invoicePrefix,
-        'nextInvoiceNumber': currentBusiness!.nextInvoiceNumber,
-        'features': currentBusiness!.features.toJson(),
-      }));
+    if (activeUserId != null && activeUserId!.isNotEmpty) {
+      final userId = activeUserId!;
+      await prefs.setString('active_user_id', userId);
+      await prefs.setBool('user_${userId}_is_business_configured', isBusinessConfigured);
+      await prefs.setString('user_${userId}_invoice_settings_json', invoiceDisplaySettings.toJsonString());
 
-      // Store items, customers, invoices, expenses for real business
-      await prefs.setString('real_items_json', jsonEncode(items.map((i) => {
-        'id': i.id,
-        'businessId': i.businessId,
-        'type': i.type.name,
-        'name': i.name,
-        'description': i.description,
-        'sku': i.sku,
-        'barcode': i.barcode,
-        'category': i.category,
-        'unit': i.unit,
-        'sellingPrice': i.sellingPrice,
-        'purchasePrice': i.purchasePrice,
-        'mrp': i.mrp,
-        'gstRate': i.gstRate,
-        'isTaxable': i.isTaxable,
-        'currentStock': i.currentStock,
-        'lowStockLimit': i.lowStockLimit,
-        'durationMinutes': i.durationMinutes,
-        'isActive': i.isActive,
-      }).toList()));
+      if (currentBusiness != null) {
+        await prefs.setString('user_${userId}_business_json', jsonEncode({
+          'id': currentBusiness!.id,
+          'accountId': userId,
+          'name': currentBusiness!.name,
+          'businessType': currentBusiness!.type.name,
+          'phone': currentBusiness!.phone,
+          'address': currentBusiness!.address,
+          'gstEnabled': currentBusiness!.gstEnabled,
+          'gstin': currentBusiness!.gstin,
+          'invoicePrefix': currentBusiness!.invoicePrefix,
+          'nextInvoiceNumber': currentBusiness!.nextInvoiceNumber,
+          'features': currentBusiness!.features.toJson(),
+        }));
 
-      await prefs.setString('real_customers_json', jsonEncode(customers.map((c) => {
-        'id': c.id,
-        'businessId': c.businessId,
-        'name': c.name,
-        'phone': c.phone,
-        'email': c.email,
-        'address': c.address,
-        'gstin': c.gstin,
-        'outstandingBalance': c.outstandingBalance,
-        'totalInvoices': c.totalInvoices,
-      }).toList()));
+        await prefs.setString('user_${userId}_items_json', jsonEncode(items.map((i) => {
+          'id': i.id,
+          'businessId': i.businessId,
+          'type': i.type.name,
+          'name': i.name,
+          'description': i.description,
+          'sku': i.sku,
+          'barcode': i.barcode,
+          'category': i.category,
+          'unit': i.unit,
+          'sellingPrice': i.sellingPrice,
+          'purchasePrice': i.purchasePrice,
+          'mrp': i.mrp,
+          'gstRate': i.gstRate,
+          'isTaxable': i.isTaxable,
+          'currentStock': i.currentStock,
+          'lowStockLimit': i.lowStockLimit,
+          'durationMinutes': i.durationMinutes,
+          'isActive': i.isActive,
+        }).toList()));
+
+        await prefs.setString('user_${userId}_customers_json', jsonEncode(customers.map((c) => {
+          'id': c.id,
+          'businessId': c.businessId,
+          'name': c.name,
+          'phone': c.phone,
+          'email': c.email,
+          'address': c.address,
+          'gstin': c.gstin,
+          'outstandingBalance': c.outstandingBalance,
+          'totalInvoices': c.totalInvoices,
+        }).toList()));
+
+        await prefs.setString('user_${userId}_invoices_json', jsonEncode(invoices.map((inv) => {
+          'id': inv.id,
+          'businessId': inv.businessId,
+          'invoiceNumber': inv.invoiceNumber,
+          'invoiceDate': inv.invoiceDate.toIso8601String(),
+          'customerId': inv.customerId,
+          'customerName': inv.customerName,
+          'customerPhone': inv.customerPhone,
+          'items': inv.items.map((i) => {
+            'id': i.id,
+            'productId': i.productId,
+            'productName': i.productName,
+            'quantity': i.quantity,
+            'unitPrice': i.unitPrice,
+            'discountAmount': i.discountAmount,
+            'gstRate': i.gstRate,
+            'taxAmount': i.taxAmount,
+            'totalAmount': i.totalAmount,
+          }).toList(),
+          'subtotal': inv.subtotal,
+          'discount': inv.discount,
+          'cgst': inv.cgst,
+          'sgst': inv.sgst,
+          'igst': inv.igst,
+          'grandTotal': inv.grandTotal,
+          'paymentType': inv.paymentType.name,
+          'paidAmount': inv.paidAmount,
+          'dueAmount': inv.dueAmount,
+          'status': inv.status.name,
+        }).toList()));
+
+        await prefs.setString('user_${userId}_expenses_json', jsonEncode(expenses.map((e) => {
+          'id': e.id,
+          'businessId': e.businessId,
+          'category': e.category,
+          'title': e.title,
+          'description': e.description,
+          'amount': e.amount,
+          'date': e.date.toIso8601String(),
+          'paymentMethod': e.paymentMethod,
+          'reference': e.reference,
+          'customerId': e.customerId,
+          'customerName': e.customerName,
+        }).toList()));
+      }
     }
   }
 
-  Future<void> _loadLocalData(SharedPreferences prefs) async {
-    final bizJson = prefs.getString('business_json');
-    if (bizJson != null) {
-      final map = jsonDecode(bizJson);
-      final bType = BusinessType.fromString(map['businessType']?.toString() ?? 'retail');
-      final featuresMap = map['features'] as Map<String, dynamic>?;
-      final features = featuresMap != null ? BusinessFeatures.fromJson(featuresMap) : bType.defaultFeatures;
+  /// Clears active session state on logout (data remains safely isolated on disk)
+  Future<void> clearActiveSessionOnLogout() async {
+    isLoggedIn = false;
+    isBusinessConfigured = false;
+    isDemoMode = false;
+    activeUserId = null;
 
-      currentBusiness = Business(
-        id: map['id'] ?? 'biz_real_1',
-        name: map['name'] ?? 'My Business',
-        businessType: bType,
-        phone: map['phone'] ?? '',
-        address: map['address'] ?? '',
-        gstEnabled: map['gstEnabled'] ?? true,
-        gstin: map['gstin'] ?? '',
-        invoicePrefix: map['invoicePrefix'] ?? 'INV',
-        nextInvoiceNumber: map['nextInvoiceNumber'] ?? 1001,
-        features: features,
-      );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_in', false);
+    await prefs.remove('active_user_id');
 
-      // Load items
-      final itemsStr = prefs.getString('real_items_json');
-      if (itemsStr != null) {
-        final List<dynamic> list = jsonDecode(itemsStr);
-        items = list.map((itemMap) {
-          final tStr = itemMap['type'] ?? 'product';
-          final type = tStr == 'service' ? ItemType.service : (tStr == 'roomCharge' ? ItemType.roomCharge : ItemType.product);
-          return Item(
-            id: itemMap['id'],
-            businessId: itemMap['businessId'] ?? currentBusiness!.id,
-            type: type,
-            name: itemMap['name'],
-            description: itemMap['description'] ?? '',
-            sku: itemMap['sku'] ?? '',
-            barcode: itemMap['barcode'] ?? '',
-            category: itemMap['category'] ?? 'General',
-            unit: itemMap['unit'] ?? 'Unit',
-            sellingPrice: (itemMap['sellingPrice'] as num).toDouble(),
-            purchasePrice: ((itemMap['purchasePrice'] ?? 0.0) as num).toDouble(),
-            mrp: ((itemMap['mrp'] ?? 0.0) as num).toDouble(),
-            gstRate: ((itemMap['gstRate'] ?? 5.0) as num).toDouble(),
-            isTaxable: itemMap['isTaxable'] ?? true,
-            currentStock: itemMap['currentStock'] ?? 0,
-            lowStockLimit: itemMap['lowStockLimit'] ?? 5,
-            durationMinutes: itemMap['durationMinutes'] ?? 0,
-            isActive: itemMap['isActive'] ?? true,
-          );
-        }).toList();
-      } else {
-        items = [];
-      }
+    clearMemoryState();
+  }
 
-      // Load customers
-      final custStr = prefs.getString('real_customers_json');
-      if (custStr != null) {
-        final List<dynamic> list = jsonDecode(custStr);
-        customers = list.map((cMap) => Customer(
-          id: cMap['id'],
-          businessId: cMap['businessId'] ?? currentBusiness!.id,
-          name: cMap['name'],
-          phone: cMap['phone'] ?? '',
-          email: cMap['email'] ?? '',
-          address: cMap['address'] ?? '',
-          gstin: cMap['gstin'] ?? '',
-          outstandingBalance: ((cMap['outstandingBalance'] ?? 0.0) as num).toDouble(),
-          totalInvoices: cMap['totalInvoices'] ?? 0,
-        )).toList();
-      } else {
-        customers = [];
-      }
-
-      invoices = [];
-      expenses = [];
-      smartInsights = [];
-    } else {
-      currentBusiness = null;
-      items = [];
-      customers = [];
-      invoices = [];
-      expenses = [];
-      smartInsights = [];
-    }
+  /// Clears all in-memory domain data
+  void clearMemoryState() {
+    currentBusiness = null;
+    items = [];
+    customers = [];
+    customerPayments = [];
+    invoices = [];
+    expenses = [];
+    smartInsights = [];
+    isBusinessConfigured = false;
   }
 
   String exportBackupJson() {
@@ -369,4 +547,3 @@ class AppDatabase {
     }
   }
 }
-

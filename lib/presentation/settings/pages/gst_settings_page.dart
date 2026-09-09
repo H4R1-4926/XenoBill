@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../domain/entities/business.dart';
 import '../../../domain/entities/business_type.dart';
@@ -191,41 +190,72 @@ class _GstSettingsPageState extends State<GstSettingsPage> {
                   const SizedBox(height: 24),
                 ],
 
-                // Save Button
-                AppButton(
-                  text: 'Save GST Settings',
-                  width: double.infinity,
-                  onPressed: () {
-                    final current = AppDatabase.instance.currentBusiness;
-                    final gstin = _gstEnabled ? _gstinController.text.trim() : '';
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+      ),
+    ),
+    bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                final current = AppDatabase.instance.currentBusiness;
+                final gstin = _gstEnabled ? _gstinController.text.trim() : '';
 
-                    final updated = (current != null)
-                        ? current.copyWith(
-                            gstEnabled: _gstEnabled,
-                            gstin: gstin,
-                          )
-                        : Business(
-                            id: 'biz_real_1',
-                            name: 'My Business',
-                            businessType: BusinessType.retail,
-                            phone: '',
-                            address: '',
-                            gstEnabled: _gstEnabled,
-                            gstin: gstin,
-                            invoicePrefix: 'INV',
-                            nextInvoiceNumber: 1001,
-                          );
+                final updated = (current != null)
+                    ? current.copyWith(
+                        gstEnabled: _gstEnabled,
+                        gstin: gstin,
+                      )
+                    : Business(
+                        id: 'biz_real_1',
+                        name: 'My Business',
+                        businessType: BusinessType.retail,
+                        phone: '',
+                        address: '',
+                        gstEnabled: _gstEnabled,
+                        gstin: gstin,
+                        invoicePrefix: 'INV',
+                        nextInvoiceNumber: 1001,
+                      );
 
-                    AppDatabase.instance.currentBusiness = updated;
-                    context.read<BusinessBloc>().add(UpdateBusinessEvent(updated));
+                AppDatabase.instance.currentBusiness = updated;
+                context.read<BusinessBloc>().add(UpdateBusinessEvent(updated));
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('GST Settings saved successfully!')),
-                    );
-                    context.pop();
-                  },
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('GST Settings saved successfully!')),
+                );
+                context.pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brightCyan,
+                foregroundColor: AppColors.darkNavy,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              ),
+              child: const Text(
+                'Save GST Settings',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.darkNavy,
                 ),
-              ],
+              ),
             ),
           ),
         ),

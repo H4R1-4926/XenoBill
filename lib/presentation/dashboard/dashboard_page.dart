@@ -72,10 +72,6 @@ class _DashboardPageState extends State<DashboardPage> {
                     _buildHeader(context, business, bizState is BusinessLoaded ? bizState.isDemoMode : false),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Main CTA + Add Invoice Hero Banner
-                    _buildAddInvoiceHeroBanner(context, terminology.addInvoice),
-                    const SizedBox(height: AppSpacing.md),
-
                     // Smart Insight Home Widget
                     if (features.smartInsightsEnabled) ...[
                       _buildSmartHomeWidget(context),
@@ -113,56 +109,6 @@ class _DashboardPageState extends State<DashboardPage> {
       business: business,
       isDemoMode: isDemo,
       onNotificationTap: () => context.push('/smart'),
-    );
-  }
-
-  Widget _buildAddInvoiceHeroBanner(BuildContext context, String actionText) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.deepNavy,
-        borderRadius: BorderRadius.circular(AppSpacing.borderRadiusMd),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.deepNavy.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  actionText,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Quick, fast & responsive local billing',
-                  style: TextStyle(color: AppColors.brightCyan.withValues(alpha: 0.9), fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => context.push(RouteConstants.addInvoice),
-            icon: const Icon(Icons.add_shopping_cart, color: AppColors.deepNavy, size: 20),
-            label: Text(
-              '+ ${actionText.toUpperCase()}',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.deepNavy),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brightCyan,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -493,29 +439,24 @@ class _DashboardPageState extends State<DashboardPage> {
           if (recent.isEmpty) {
             return AppCard(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                 child: Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(14),
                       decoration: const BoxDecoration(
                         color: AppColors.lightGray,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.receipt_long_outlined, size: 36, color: AppColors.brightCyan),
+                      child: const Icon(Icons.receipt_long_outlined, size: 32, color: AppColors.brightCyan),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Text('No $invoiceLabel yet', style: AppTextStyles.h3),
                     const SizedBox(height: 4),
                     Text(
                       'Create your first $invoiceLabel to see activity here.',
-                      style: AppTextStyles.bodySmall,
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
                       textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    AppButton(
-                      text: '+ Add $invoiceLabel',
-                      onPressed: () => context.push(RouteConstants.addInvoice),
                     ),
                   ],
                 ),

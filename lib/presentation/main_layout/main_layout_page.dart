@@ -34,7 +34,10 @@ class MainLayoutPage extends StatelessWidget {
     if (location.startsWith('/home')) return 0;
     if (location.startsWith('/sales')) return 1;
     if (location.startsWith('/shop') || location.startsWith('/inventory')) return 3;
-    if (location.startsWith('/settings') || location.startsWith('/customers')) return 4;
+    if (location.startsWith('/settings') ||
+        location.startsWith('/customers') ||
+        location.startsWith('/expenses') ||
+        location.startsWith('/reports')) return 4;
     return 0;
   }
 

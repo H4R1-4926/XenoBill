@@ -130,7 +130,7 @@ class AppRouter {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: RouteConstants.customers,
-        builder: (context, state) => const CustomersPage(),
+        builder: (context, state) => const MainLayoutPage(child: CustomersPage()),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
@@ -151,12 +151,12 @@ class AppRouter {
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: RouteConstants.reports,
-        builder: (context, state) => const ReportsPage(),
+        builder: (context, state) => const MainLayoutPage(child: ReportsPage()),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
         path: '/expenses',
-        builder: (context, state) => const ExpensesPage(),
+        builder: (context, state) => const MainLayoutPage(child: ExpensesPage()),
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,

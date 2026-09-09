@@ -9,7 +9,6 @@ import '../../core/constants/route_constants.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../core/widgets/app_card.dart';
-import '../../core/widgets/app_button.dart';
 import '../../core/widgets/xenobiz_app_bar.dart';
 import '../../application/business/business_bloc.dart';
 import '../../application/sales/sales_bloc.dart';
@@ -438,6 +437,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
           if (recent.isEmpty) {
             return AppCard(
+              width: double.infinity,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                 child: Column(

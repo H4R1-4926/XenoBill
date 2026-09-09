@@ -9,6 +9,7 @@ class AppCard extends StatelessWidget {
   final Color? color;
   final VoidCallback? onTap;
   final Border? border;
+  final double? width;
 
   const AppCard({
     super.key,
@@ -17,11 +18,13 @@ class AppCard extends StatelessWidget {
     this.color,
     this.onTap,
     this.border,
+    this.width,
   });
 
   @override
   Widget build(BuildContext context) {
     final cardWidget = Container(
+      width: width ?? double.infinity,
       padding: padding ?? const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: color ?? Colors.white,

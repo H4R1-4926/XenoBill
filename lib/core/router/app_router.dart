@@ -37,7 +37,6 @@ class AppRouter {
   AppRouter._();
 
   static final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'rootNav');
-  static final _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shellNav');
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,

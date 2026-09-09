@@ -102,7 +102,6 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
         }
 
         final terminology = business?.terminology;
-        final features = business?.features;
         final nextInvNum = business?.nextInvoiceNumber ?? AppDatabase.instance.currentBusiness?.nextInvoiceNumber ?? 1001;
         final prefix = business?.invoicePrefix ?? 'INV';
         final invNumber = '$prefix-$nextInvNum';
@@ -305,21 +304,6 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
         );
       },
     );
-  }
-
-  void _simulateBarcodeScan(BuildContext context) {
-    final invState = context.read<InventoryBloc>().state;
-    if (invState is InventoryLoaded && invState.products.isNotEmpty) {
-      final sample = invState.products.firstWhere((p) => p.isProduct && p.currentStock > 0, orElse: () => invState.products.first);
-      context.read<InvoiceBloc>().add(AddProductToCartEvent(sample));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Scanned barcode: ${sample.name} added to cart!'),
-          backgroundColor: AppColors.darkNavy,
-          duration: const Duration(seconds: 1),
-        ),
-      );
-    }
   }
 
   Widget _buildCategorySelector(BuildContext context) {

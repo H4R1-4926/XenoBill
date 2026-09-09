@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../application/reports/reports_bloc.dart';
+import '../../infrastructure/database/app_database.dart';
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({super.key});
@@ -14,7 +19,7 @@ class ReportsPage extends StatefulWidget {
 
 class _ReportsPageState extends State<ReportsPage> {
   int _selectedReportType = 0; // 0 = Sales Reports, 1 = GST Reports
-  String _selectedDateRange = '7 Days';
+  String _selectedDateRange = 'Today';
   String _selectedGstSubTab = 'Tax Rate Summary';
 
   @override
@@ -23,8 +28,123 @@ class _ReportsPageState extends State<ReportsPage> {
     context.read<ReportsBloc>().add(LoadReportsEvent(dateRange: _selectedDateRange));
   }
 
+  Future<void> _downloadPdfReport(ReportsLoaded? state, bool isGstEnabled) async {
+    if (state == null) return;
+
+    final pdf = pw.Document();
+    final biz = AppDatabase.instance.currentBusiness;
+    final bizName = biz?.name ?? 'Xenobill Business';
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          return [
+            pw.Header(
+              level: 0,
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(bizName, style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+                      if (biz != null && biz.phone.isNotEmpty) pw.Text('Phone: ${biz.phone}'),
+                      if (isGstEnabled && biz != null && biz.gstin.isNotEmpty) pw.Text('GSTIN: ${biz.gstin}'),
+                    ],
+                  ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('FINANCIAL REPORT', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Period: ${state.selectedDateRange}'),
+                      pw.Text('Generated: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 16),
+
+            // Sales Summary
+            pw.Text('Sales Summary', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 6),
+            pw.TableHelper.fromTextArray(
+              headers: ['Metric', 'Amount'],
+              data: [
+                ['Gross Sales', CurrencyFormatter.format(state.grossSales)],
+                ['Total Discount', '-${CurrencyFormatter.format(state.totalDiscount)}'],
+                ['Tax Collected', CurrencyFormatter.format(state.totalTax)],
+                ['Net Sales Total', CurrencyFormatter.format(state.netSales)],
+                ['Total Invoices Count', '${state.totalInvoices}'],
+              ],
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 16),
+
+            // Payment Methods
+            pw.Text('Payment Mode Breakdown', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 6),
+            pw.TableHelper.fromTextArray(
+              headers: ['Payment Mode', 'Amount'],
+              data: [
+                ['Cash', CurrencyFormatter.format(state.cashTotal)],
+                ['Credit', CurrencyFormatter.format(state.creditTotal)],
+                ['UPI', CurrencyFormatter.format(state.upiTotal)],
+                ['Card', CurrencyFormatter.format(state.cardTotal)],
+              ],
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 16),
+
+            // Top Products
+            if (state.topProducts.isNotEmpty) ...[
+              pw.Text('Top Selling Products', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 6),
+              pw.TableHelper.fromTextArray(
+                headers: ['Product Name', 'Qty Sold', 'Total Revenue'],
+                data: state.topProducts
+                    .take(5)
+                    .map((p) => [p.name, '${p.quantitySold}', CurrencyFormatter.format(p.totalAmount)])
+                    .toList(),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 16),
+            ],
+
+            // GST Summary
+            if (isGstEnabled) ...[
+              pw.Text('GST & Tax Summary', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 6),
+              pw.TableHelper.fromTextArray(
+                headers: ['Tax Category', 'Amount'],
+                data: [
+                  ['Taxable Sales', CurrencyFormatter.format(state.taxableSales)],
+                  ['CGST Total', CurrencyFormatter.format(state.cgstTotal)],
+                  ['SGST Total', CurrencyFormatter.format(state.sgstTotal)],
+                  ['IGST Total', CurrencyFormatter.format(state.igstTotal)],
+                  ['Total GST Collected', CurrencyFormatter.format(state.totalTax)],
+                ],
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+            ],
+          ];
+        },
+      ),
+    );
+
+    final bytes = await pdf.save();
+    await Printing.sharePdf(bytes: bytes, filename: 'Xenobill_Report_${state.selectedDateRange}.pdf');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isGstEnabled = AppDatabase.instance.currentBusiness?.gstEnabled ?? true;
+    if (!isGstEnabled && _selectedReportType != 0) {
+      _selectedReportType = 0;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -44,32 +164,43 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: InkWell(
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Downloading report...')),
-                );
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+          BlocBuilder<ReportsBloc, ReportsState>(
+            builder: (context, state) {
+              ReportsLoaded? loadedState;
+              if (state is ReportsLoaded) {
+                loadedState = state;
+              }
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: InkWell(
+                  onTap: () async {
+                    if (loadedState == null) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Generating PDF report...')),
+                    );
+                    await _downloadPdfReport(loadedState, isGstEnabled);
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ],
+                    child: const Icon(Icons.file_download_outlined, color: AppColors.darkNavy, size: 20),
+                  ),
                 ),
-                child: const Icon(Icons.file_download_outlined, color: AppColors.darkNavy, size: 20),
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -79,11 +210,21 @@ class _ReportsPageState extends State<ReportsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top Segmented Switcher (Sales Reports vs GST Reports)
-              _buildSegmentedTabSwitcher(),
+              // Show segmented switcher only if GST is enabled
+              if (isGstEnabled)
+                _buildSegmentedTabSwitcher()
+              else
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8.0),
+                  child: Text(
+                    'Sales Reports',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkNavy),
+                  ),
+                ),
+
               const SizedBox(height: 14),
 
-              // Date Filter Chips (Today, Yesterday, 7 Days, 30 Days)
+              // Date Filter Chips
               _buildDateRangeChips(),
               const SizedBox(height: 18),
 
@@ -95,7 +236,7 @@ class _ReportsPageState extends State<ReportsPage> {
                     loadedState = state;
                   }
 
-                  if (_selectedReportType == 0) {
+                  if (_selectedReportType == 0 || !isGstEnabled) {
                     return _buildSalesReportView(loadedState);
                   } else {
                     return _buildGstReportView(loadedState);
@@ -228,13 +369,13 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   // ==========================================
-  // SALES REPORT VIEW (Matching Images 1 & 2)
+  // SALES REPORT VIEW
   // ==========================================
   Widget _buildSalesReportView(ReportsLoaded? state) {
-    final grossSales = (state != null && state.grossSales > 0) ? state.grossSales : 86400.0;
-    final totalDiscount = (state != null && state.totalDiscount > 0) ? state.totalDiscount : 1850.0;
-    final totalTax = (state != null && state.totalTax > 0) ? state.totalTax : 4120.0;
-    final netSales = (state != null && state.netSales > 0) ? state.netSales : 88670.0;
+    final grossSales = state?.grossSales ?? 0.0;
+    final totalDiscount = state?.totalDiscount ?? 0.0;
+    final totalTax = state?.totalTax ?? 0.0;
+    final netSales = state?.netSales ?? 0.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,7 +458,7 @@ class _ReportsPageState extends State<ReportsPage> {
                 height: 110,
                 width: double.infinity,
                 child: CustomPaint(
-                  painter: _SalesTrendChartPainter(),
+                  painter: _SalesTrendChartPainter(trendPoints: state?.trendPoints ?? const [0, 0, 0, 0, 0, 0, 0]),
                 ),
               ),
               const SizedBox(height: 12),
@@ -341,23 +482,23 @@ class _ReportsPageState extends State<ReportsPage> {
 
         const SizedBox(height: 22),
 
-        // 4. Top Products Section (Image 2)
+        // 4. Top Products Section
         const Text(
           'Top products',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkNavy),
         ),
         const SizedBox(height: 10),
-        _buildTopProductsCard(),
+        _buildTopProductsCard(state?.topProducts ?? []),
 
         const SizedBox(height: 22),
 
-        // 5. Top Customers Section (Image 2)
+        // 5. Top Customers Section
         const Text(
           'Top customers',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkNavy),
         ),
         const SizedBox(height: 10),
-        _buildTopCustomersCard(),
+        _buildTopCustomersCard(state?.topCustomers ?? []),
       ],
     );
   }
@@ -373,16 +514,16 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Widget _buildPaymentMethodCard(ReportsLoaded? state) {
-    final cashVal = (state != null && state.cashTotal > 0) ? state.cashTotal : 58200.0;
-    final creditVal = (state != null && state.creditTotal > 0) ? state.creditTotal : 19400.0;
-    final upiVal = (state != null && state.upiTotal > 0) ? state.upiTotal : 7800.0;
-    final cardVal = (state != null && state.cardTotal > 0) ? state.cardTotal : 1000.0;
+    final cashVal = state?.cashTotal ?? 0.0;
+    final creditVal = state?.creditTotal ?? 0.0;
+    final upiVal = state?.upiTotal ?? 0.0;
+    final cardVal = state?.cardTotal ?? 0.0;
 
     final total = cashVal + creditVal + upiVal + cardVal;
-    final cashPct = ((cashVal / total) * 100).round();
-    final creditPct = ((creditVal / total) * 100).round();
-    final upiPct = ((upiVal / total) * 100).round();
-    final cardPct = ((cardVal / total) * 100).round();
+    final cashPct = total > 0 ? ((cashVal / total) * 100).round() : 0;
+    final creditPct = total > 0 ? ((creditVal / total) * 100).round() : 0;
+    final upiPct = total > 0 ? ((upiVal / total) * 100).round() : 0;
+    final cardPct = total > 0 ? ((cardVal / total) * 100).round() : 0;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -433,7 +574,7 @@ class _ReportsPageState extends State<ReportsPage> {
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: (pct / 100.0).clamp(0.02, 1.0),
+            value: pct > 0 ? (pct / 100.0).clamp(0.02, 1.0) : 0.0,
             backgroundColor: const Color(0xFFF1F5F9),
             color: color,
             minHeight: 6,
@@ -443,12 +584,24 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
-  Widget _buildTopProductsCard() {
-    final products = [
-      {'name': 'Basmati Rice 5kg', 'units': '86 units sold', 'amount': '₹27,520'},
-      {'name': 'Amul Milk 1L', 'units': '210 units sold', 'amount': '₹12,600'},
-      {'name': 'Sunfeast Bread', 'units': '142 units sold', 'amount': '₹6,390'},
-    ];
+  Widget _buildTopProductsCard(List<TopProductData> products) {
+    if (products.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: Text(
+            'No products sold in this period',
+            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+          ),
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -492,13 +645,13 @@ class _ReportsPageState extends State<ReportsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item['name']!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkNavy)),
+                          Text(item.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkNavy)),
                           const SizedBox(height: 2),
-                          Text(item['units']!, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                          Text('${item.quantitySold} units sold', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                         ],
                       ),
                     ),
-                    Text(item['amount']!, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.darkNavy)),
+                    Text(CurrencyFormatter.format(item.totalAmount), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.darkNavy)),
                   ],
                 ),
               ),
@@ -510,12 +663,24 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
-  Widget _buildTopCustomersCard() {
-    final customers = [
-      {'initials': 'RK', 'name': 'Rahul Kumar', 'invoices': '12 invoices', 'amount': '₹34,200'},
-      {'initials': 'SN', 'name': 'Sunita Nair', 'invoices': '9 invoices', 'amount': '₹18,050'},
-      {'initials': 'AP', 'name': 'Arjun Pillai', 'invoices': '7 invoices', 'amount': '₹11,930'},
-    ];
+  Widget _buildTopCustomersCard(List<TopCustomerData> customers) {
+    if (customers.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: Text(
+            'No customer transactions in this period',
+            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+          ),
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -550,7 +715,7 @@ class _ReportsPageState extends State<ReportsPage> {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        item['initials']!,
+                        item.initials,
                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                     ),
@@ -559,13 +724,13 @@ class _ReportsPageState extends State<ReportsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(item['name']!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkNavy)),
+                          Text(item.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkNavy)),
                           const SizedBox(height: 2),
-                          Text(item['invoices']!, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                          Text('${item.invoiceCount} invoices', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                         ],
                       ),
                     ),
-                    Text(item['amount']!, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.darkNavy)),
+                    Text(CurrencyFormatter.format(item.totalAmount), style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold, color: AppColors.darkNavy)),
                   ],
                 ),
               ),
@@ -578,15 +743,15 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   // ==========================================
-  // GST REPORT VIEW (Matching Images 3 & 4)
+  // GST REPORT VIEW
   // ==========================================
   Widget _buildGstReportView(ReportsLoaded? state) {
-    final taxableSales = (state != null && state.taxableSales > 0) ? state.taxableSales : 82280.0;
-    final totalTax = (state != null && state.totalTax > 0) ? state.totalTax : 4120.0;
-    final cgst = (state != null && state.cgstTotal > 0) ? state.cgstTotal : 2060.0;
-    final sgst = (state != null && state.sgstTotal > 0) ? state.sgstTotal : 2060.0;
-    final igst = (state != null && state.igstTotal > 0) ? state.igstTotal : 0.0;
-    final invoicesCount = (state != null && state.totalInvoices > 0) ? state.totalInvoices : 128;
+    final taxableSales = state?.taxableSales ?? 0.0;
+    final totalTax = state?.totalTax ?? 0.0;
+    final cgst = state?.cgstTotal ?? 0.0;
+    final sgst = state?.sgstTotal ?? 0.0;
+    final igst = state?.igstTotal ?? 0.0;
+    final invoicesCount = state?.totalInvoices ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,7 +783,7 @@ class _ReportsPageState extends State<ReportsPage> {
 
         const SizedBox(height: 20),
 
-        // 2. GST Sub-tab Filter Chips (Tax Rate Summary, HSN Summary, B2B vs B2C, GST Invoice List)
+        // 2. GST Sub-tab Filter Chips
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -652,11 +817,11 @@ class _ReportsPageState extends State<ReportsPage> {
 
         const SizedBox(height: 16),
 
-        // 3. Dynamic Sub-tab Table Card
-        if (_selectedGstSubTab == 'Tax Rate Summary') _buildTaxRateSummaryCard(),
-        if (_selectedGstSubTab == 'HSN Summary') _buildHsnSummaryCard(),
-        if (_selectedGstSubTab == 'B2B vs B2C') _buildB2bB2cSummaryCard(),
-        if (_selectedGstSubTab == 'GST Invoice List') _buildGstInvoiceListCard(),
+        // 3. Dynamic Sub-tab Table Cards
+        if (_selectedGstSubTab == 'Tax Rate Summary') _buildTaxRateSummaryCard(state?.taxRateSummaries ?? []),
+        if (_selectedGstSubTab == 'HSN Summary') _buildHsnSummaryCard(state?.hsnSummaries ?? []),
+        if (_selectedGstSubTab == 'B2B vs B2C') _buildB2bB2cSummaryCard(state),
+        if (_selectedGstSubTab == 'GST Invoice List') _buildGstInvoiceListCard(state?.gstInvoices ?? []),
       ],
     );
   }
@@ -701,15 +866,7 @@ class _ReportsPageState extends State<ReportsPage> {
     );
   }
 
-  // --- GST Sub-tab 1: Tax Rate Summary Table Card (Image 3) ---
-  Widget _buildTaxRateSummaryCard() {
-    final rows = [
-      {'rate': '0%', 'taxable': '₹18,600', 'cgst': '₹0', 'sgst': '₹0', 'tax': '₹0'},
-      {'rate': '5%', 'taxable': '₹41,200', 'cgst': '₹1,030', 'sgst': '₹1,030', 'tax': '₹2,060'},
-      {'rate': '12%', 'taxable': '₹16,280', 'cgst': '₹977', 'sgst': '₹977', 'tax': '₹1,954'},
-      {'rate': '18%', 'taxable': '₹6,200', 'cgst': '₹53', 'sgst': '₹53', 'tax': '₹106'},
-    ];
-
+  Widget _buildTaxRateSummaryCard(List<TaxRateSummaryData> rates) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -732,49 +889,44 @@ class _ReportsPageState extends State<ReportsPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkNavy),
           ),
           const SizedBox(height: 14),
-
-          // Table Header
-          const Row(
-            children: [
-              Expanded(flex: 2, child: Text('RATE', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 3, child: Text('TAXABLE', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 2, child: Text('CGST', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 2, child: Text('SGST', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 3, child: Text('TOTAL TAX', textAlign: TextAlign.right, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Divider(color: Color(0xFFF1F5F9), height: 1),
-
-          // Table Rows
-          ...rows.map((row) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10.0),
-              child: Row(
-                children: [
-                  Expanded(flex: 2, child: Text(row['rate']!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
-                  Expanded(flex: 3, child: Text(row['taxable']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 2, child: Text(row['cgst']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 2, child: Text(row['sgst']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 3, child: Text(row['tax']!, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
-                ],
-              ),
-            );
-          }),
+          if (rates.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0),
+              child: Center(child: Text('No tax data in this period', style: TextStyle(color: Color(0xFF64748B)))),
+            )
+          else ...[
+            const Row(
+              children: [
+                Expanded(flex: 2, child: Text('RATE', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 3, child: Text('TAXABLE', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 2, child: Text('CGST', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 2, child: Text('SGST', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 3, child: Text('TOTAL TAX', textAlign: TextAlign.right, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+            ...rates.map((row) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10.0),
+                child: Row(
+                  children: [
+                    Expanded(flex: 2, child: Text('${row.rate.toInt()}%', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+                    Expanded(flex: 3, child: Text(CurrencyFormatter.format(row.taxableAmount), style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                    Expanded(flex: 2, child: Text(CurrencyFormatter.format(row.cgst), style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                    Expanded(flex: 2, child: Text(CurrencyFormatter.format(row.sgst), style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                    Expanded(flex: 3, child: Text(CurrencyFormatter.format(row.totalTax), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
   }
 
-  // --- GST Sub-tab 2: HSN Summary Table Card (Image 4) ---
-  Widget _buildHsnSummaryCard() {
-    final rows = [
-      {'hsn': '1006', 'desc': 'Rice', 'qty': '86', 'tax': '₹1,376'},
-      {'hsn': '0401', 'desc': 'Milk & dairy', 'qty': '210', 'tax': '₹0'},
-      {'hsn': '1905', 'desc': 'Biscuits', 'qty': '340', 'tax': '₹340'},
-      {'hsn': '3401', 'desc': 'Soaps', 'qty': '64', 'tax': '₹691'},
-    ];
-
+  Widget _buildHsnSummaryCard(List<HsnSummaryData> hsnList) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -797,44 +949,49 @@ class _ReportsPageState extends State<ReportsPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkNavy),
           ),
           const SizedBox(height: 14),
-
-          // Table Header
-          const Row(
-            children: [
-              Expanded(flex: 2, child: Text('HSN', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 4, child: Text('DESCRIPTION', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 2, child: Text('QTY', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 3, child: Text('TAX', textAlign: TextAlign.right, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Divider(color: Color(0xFFF1F5F9), height: 1),
-
-          // Table Rows
-          ...rows.map((row) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10.0),
-              child: Row(
-                children: [
-                  Expanded(flex: 2, child: Text(row['hsn']!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
-                  Expanded(flex: 4, child: Text(row['desc']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 2, child: Text(row['qty']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 3, child: Text(row['tax']!, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
-                ],
-              ),
-            );
-          }),
+          if (hsnList.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0),
+              child: Center(child: Text('No HSN data in this period', style: TextStyle(color: Color(0xFF64748B)))),
+            )
+          else ...[
+            const Row(
+              children: [
+                Expanded(flex: 2, child: Text('HSN', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 4, child: Text('DESCRIPTION', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 2, child: Text('QTY', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 3, child: Text('TAX', textAlign: TextAlign.right, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+            ...hsnList.map((row) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10.0),
+                child: Row(
+                  children: [
+                    Expanded(flex: 2, child: Text(row.hsnCode, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+                    Expanded(flex: 4, child: Text(row.description, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                    Expanded(flex: 2, child: Text('${row.quantity}', style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                    Expanded(flex: 3, child: Text(CurrencyFormatter.format(row.totalTax), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
   }
 
-  // --- GST Sub-tab 3: B2B vs B2C Table Card ---
-  Widget _buildB2bB2cSummaryCard() {
-    final rows = [
-      {'type': 'B2B (Registered)', 'invoices': '24', 'taxable': '₹32,000', 'tax': '₹1,600'},
-      {'type': 'B2C (Consumer)', 'invoices': '104', 'taxable': '₹50,280', 'tax': '₹2,520'},
-    ];
+  Widget _buildB2bB2cSummaryCard(ReportsLoaded? state) {
+    final b2bCount = state?.b2bInvoices ?? 0;
+    final b2bTaxable = state?.b2bTaxable ?? 0.0;
+    final b2bTax = state?.b2bTax ?? 0.0;
+
+    final b2cCount = state?.b2cInvoices ?? 0;
+    final b2cTaxable = state?.b2cTaxable ?? 0.0;
+    final b2cTax = state?.b2cTax ?? 0.0;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -858,8 +1015,6 @@ class _ReportsPageState extends State<ReportsPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkNavy),
           ),
           const SizedBox(height: 14),
-
-          // Table Header
           const Row(
             children: [
               Expanded(flex: 4, child: Text('TYPE', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
@@ -870,35 +1025,34 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
           const SizedBox(height: 8),
           const Divider(color: Color(0xFFF1F5F9), height: 1),
-
-          // Table Rows
-          ...rows.map((row) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10.0),
-              child: Row(
-                children: [
-                  Expanded(flex: 4, child: Text(row['type']!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
-                  Expanded(flex: 2, child: Text(row['invoices']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 3, child: Text(row['taxable']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 3, child: Text(row['tax']!, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
-                ],
-              ),
-            );
-          }),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10.0),
+            child: Row(
+              children: [
+                const Expanded(flex: 4, child: Text('B2B (Registered)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+                Expanded(flex: 2, child: Text('$b2bCount', style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                Expanded(flex: 3, child: Text(CurrencyFormatter.format(b2bTaxable), style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                Expanded(flex: 3, child: Text(CurrencyFormatter.format(b2bTax), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10.0),
+            child: Row(
+              children: [
+                const Expanded(flex: 4, child: Text('B2C (Consumer)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+                Expanded(flex: 2, child: Text('$b2cCount', style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                Expanded(flex: 3, child: Text(CurrencyFormatter.format(b2cTaxable), style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                Expanded(flex: 3, child: Text(CurrencyFormatter.format(b2cTax), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // --- GST Sub-tab 4: GST Invoice List Card ---
-  Widget _buildGstInvoiceListCard() {
-    final rows = [
-      {'inv': 'INV-001', 'customer': 'Rahul Kumar', 'taxable': '₹12,400', 'tax': '₹620'},
-      {'inv': 'INV-002', 'customer': 'Sunita Nair', 'taxable': '₹8,500', 'tax': '₹425'},
-      {'inv': 'INV-003', 'customer': 'Arjun Pillai', 'taxable': '₹5,600', 'tax': '₹280'},
-      {'inv': 'INV-004', 'customer': 'General Customer', 'taxable': '₹2,400', 'tax': '₹120'},
-    ];
-
+  Widget _buildGstInvoiceListCard(List<GstInvoiceData> invoices) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -921,33 +1075,36 @@ class _ReportsPageState extends State<ReportsPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkNavy),
           ),
           const SizedBox(height: 14),
-
-          // Table Header
-          const Row(
-            children: [
-              Expanded(flex: 3, child: Text('INV NO', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 4, child: Text('CUSTOMER', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 3, child: Text('TAXABLE', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-              Expanded(flex: 3, child: Text('TAX', textAlign: TextAlign.right, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Divider(color: Color(0xFFF1F5F9), height: 1),
-
-          // Table Rows
-          ...rows.map((row) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10.0),
-              child: Row(
-                children: [
-                  Expanded(flex: 3, child: Text(row['inv']!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkNavy))),
-                  Expanded(flex: 4, child: Text(row['customer']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 3, child: Text(row['taxable']!, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
-                  Expanded(flex: 3, child: Text(row['tax']!, textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
-                ],
-              ),
-            );
-          }),
+          if (invoices.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12.0),
+              child: Center(child: Text('No GST invoices in this period', style: TextStyle(color: Color(0xFF64748B)))),
+            )
+          else ...[
+            const Row(
+              children: [
+                Expanded(flex: 3, child: Text('INV NO', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 4, child: Text('CUSTOMER', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 3, child: Text('TAXABLE', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+                Expanded(flex: 3, child: Text('TAX', textAlign: TextAlign.right, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)))),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Divider(color: Color(0xFFF1F5F9), height: 1),
+            ...invoices.map((row) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10.0),
+                child: Row(
+                  children: [
+                    Expanded(flex: 3, child: Text(row.invoiceNumber, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkNavy))),
+                    Expanded(flex: 4, child: Text(row.customerName, style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                    Expanded(flex: 3, child: Text(CurrencyFormatter.format(row.taxableAmount), style: const TextStyle(fontSize: 13, color: AppColors.darkNavy))),
+                    Expanded(flex: 3, child: Text(CurrencyFormatter.format(row.taxAmount), textAlign: TextAlign.right, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkNavy))),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
@@ -958,6 +1115,10 @@ class _ReportsPageState extends State<ReportsPage> {
 // CUSTOM PAINTER FOR SALES TREND SMOOTH CHART
 // ==========================================
 class _SalesTrendChartPainter extends CustomPainter {
+  final List<double> trendPoints;
+
+  _SalesTrendChartPainter({this.trendPoints = const [0, 0, 0, 0, 0, 0, 0]});
+
   @override
   void paint(Canvas canvas, Size size) {
     final strokePaint = Paint()
@@ -978,15 +1139,17 @@ class _SalesTrendChartPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
 
-    final points = [
-      Offset(0, size.height * 0.70),
-      Offset(size.width * 0.16, size.height * 0.55),
-      Offset(size.width * 0.33, size.height * 0.65),
-      Offset(size.width * 0.50, size.height * 0.30),
-      Offset(size.width * 0.66, size.height * 0.45),
-      Offset(size.width * 0.83, size.height * 0.25),
-      Offset(size.width, size.height * 0.10),
-    ];
+    final maxVal = trendPoints.fold<double>(0.0, (prev, curr) => curr > prev ? curr : prev);
+    final count = trendPoints.length > 1 ? trendPoints.length : 7;
+
+    final points = <Offset>[];
+    for (int i = 0; i < count; i++) {
+      final val = i < trendPoints.length ? trendPoints[i] : 0.0;
+      final x = size.width * (i / (count - 1));
+      final normY = maxVal > 0 ? (val / maxVal).clamp(0.0, 1.0) : 0.0;
+      final y = size.height * (0.85 - (normY * 0.70));
+      points.add(Offset(x, y));
+    }
 
     final path = Path();
     path.moveTo(points[0].dx, points[0].dy);
@@ -1009,5 +1172,7 @@ class _SalesTrendChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _SalesTrendChartPainter oldDelegate) {
+    return oldDelegate.trendPoints != trendPoints;
+  }
 }

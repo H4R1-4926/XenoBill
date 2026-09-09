@@ -460,7 +460,7 @@ class _SalesHistoryPageState extends State<SalesHistoryPage> {
 
   Widget _buildFilterRow() {
     final dateOptions = ['Today', '7 days', '30 days', 'Custom'];
-    final paymentOptions = ['All', 'Cash', 'Credit', 'Pending'];
+    final paymentOptions = ['All', 'Cash', 'Credit'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

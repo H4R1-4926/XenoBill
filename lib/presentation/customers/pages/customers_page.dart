@@ -7,7 +7,6 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constants/route_constants.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_search_field.dart';
 import '../../../application/customers/customers_bloc.dart';
 import '../../../application/business/business_bloc.dart';
@@ -162,11 +161,6 @@ class _CustomersPageState extends State<CustomersPage> {
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 24),
-                                  AppButton(
-                                    text: '+ Add $customerLabel',
-                                    onPressed: () => context
-                                        .push(RouteConstants.addEditCustomer),
-                                  ),
                                 ],
                               ),
                             ),
@@ -272,7 +266,8 @@ class _CustomersPageState extends State<CustomersPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: AppCard(
-        onTap: () => context.push(RouteConstants.customerProfile, extra: customer),
+        onTap: () =>
+            context.push(RouteConstants.customerProfile, extra: customer),
         child: Row(
           children: [
             CircleAvatar(
@@ -291,11 +286,9 @@ class _CustomersPageState extends State<CustomersPage> {
                   Text(customer.name,
                       style: AppTextStyles.bodyLarge
                           .copyWith(fontWeight: FontWeight.bold)),
-                  Text(
-                      customer.phone.isEmpty ? "Walk-in" : customer.phone,
+                  Text(customer.phone.isEmpty ? "Walk-in" : customer.phone,
                       style: AppTextStyles.bodySmall),
-                  Text(
-                      '${customer.totalInvoices} Invoices',
+                  Text('${customer.totalInvoices} Invoices',
                       style: AppTextStyles.bodySmall),
                 ],
               ),
@@ -408,7 +401,9 @@ class _CustomersPageState extends State<CustomersPage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            customer.phone.isEmpty ? "No phone" : customer.phone,
+                            customer.phone.isEmpty
+                                ? "No phone"
+                                : customer.phone,
                             style: const TextStyle(
                                 fontSize: 12, color: Color(0xFF64748B)),
                             maxLines: 1,
@@ -470,7 +465,8 @@ class _CustomersPageState extends State<CustomersPage> {
                       style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                   onTap: () {
                     Navigator.pop(ctx);
-                    context.push(RouteConstants.customerProfile, extra: customer);
+                    context.push(RouteConstants.customerProfile,
+                        extra: customer);
                   },
                 ),
 

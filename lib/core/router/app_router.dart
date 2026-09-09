@@ -129,6 +129,11 @@ class AppRouter {
       ),
       GoRoute(
         parentNavigatorKey: _rootNavigatorKey,
+        path: RouteConstants.customers,
+        builder: (context, state) => const CustomersPage(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
         path: RouteConstants.addEditCustomer,
         builder: (context, state) {
           final customer = state.extra as Customer?;

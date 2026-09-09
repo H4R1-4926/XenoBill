@@ -203,12 +203,20 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
                   onTapCustomer: () {
                     CustomerSelector.showCustomerPicker(context, label: 'Select customer');
                   },
-                  onSelectPayment: (type) {
-                    context.read<InvoiceBloc>().add(SetPaymentTypeEvent(type));
+                  onSelectPayment: (type) async {
                     if (type == PaymentType.credit) {
                       if (invoiceState.customer.id == 'cust_walk_in') {
-                        CustomerSelector.showCustomerPicker(context, label: 'Select customer');
+                        final selected = await CustomerSelector.showCustomerPicker(context, label: 'Select customer');
+                        if (selected == null || selected.id == 'cust_walk_in') {
+                          if (context.mounted) {
+                            context.read<InvoiceBloc>().add(const SetPaymentTypeEvent(PaymentType.cash));
+                          }
+                          return;
+                        }
                       }
+                    }
+                    if (context.mounted) {
+                      context.read<InvoiceBloc>().add(SetPaymentTypeEvent(type));
                     }
                   },
                 ),
@@ -227,9 +235,7 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
                           onChanged: (q) {
                             context.read<InventoryBloc>().add(SearchInventoryEvent(q));
                           },
-                          onScanTap: (features?.barcodeEnabled ?? true)
-                              ? () => setState(() => _isScannerOpen = !_isScannerOpen)
-                              : null,
+                          onScanTap: () => setState(() => _isScannerOpen = !_isScannerOpen),
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -319,12 +325,16 @@ class _AddInvoicePageState extends State<AddInvoicePage> {
   Widget _buildCategorySelector(BuildContext context) {
     return BlocBuilder<InventoryBloc, InventoryState>(
       builder: (context, state) {
-        Set<String> categoriesSet = {'All', 'Category 1', 'Category 2'};
+        final Set<String> categoriesSet = {'All'};
         if (state is InventoryLoaded) {
           for (final item in state.products) {
-            if (item.category.isNotEmpty) categoriesSet.add(item.category);
+            final cat = item.category.trim();
+            if (cat.isNotEmpty) {
+              categoriesSet.add(cat);
+            }
           }
         }
+
         final categories = categoriesSet.toList();
 
         return CategorySelector(

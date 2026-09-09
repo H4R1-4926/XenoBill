@@ -30,10 +30,10 @@ class CustomerSelector extends StatelessWidget {
     );
   }
 
-  static void showCustomerPicker(BuildContext context, {String label = 'Select customer'}) {
+  static Future<Customer?> showCustomerPicker(BuildContext context, {String label = 'Select customer'}) async {
     final invoiceBloc = context.read<InvoiceBloc>();
 
-    showModalBottomSheet(
+    final selected = await showModalBottomSheet<dynamic>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -41,11 +41,13 @@ class CustomerSelector extends StatelessWidget {
         value: context.read<CustomersBloc>(),
         child: const _CustomerPickerModal(),
       ),
-    ).then((selected) {
-      if (selected is Customer) {
-        invoiceBloc.add(SetCustomerEvent(selected));
-      }
-    });
+    );
+
+    if (selected is Customer) {
+      invoiceBloc.add(SetCustomerEvent(selected));
+      return selected;
+    }
+    return null;
   }
 }
 

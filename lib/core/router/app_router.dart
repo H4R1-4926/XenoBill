@@ -46,6 +46,9 @@ class AppRouter {
       final db = AppDatabase.instance;
       final hasSupabaseSession = Supabase.instance.client.auth.currentSession != null;
       final isAuthenticated = db.isLoggedIn || hasSupabaseSession;
+      if (db.currentBusiness != null) {
+        db.isBusinessConfigured = true;
+      }
 
       final isWelcomeRoute = state.matchedLocation == RouteConstants.welcome;
       final isAuthRoute = state.matchedLocation == RouteConstants.login ||

@@ -2,9 +2,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthChangeEvent;
+import 'package:uuid/uuid.dart';
+import '../../domain/entities/business.dart';
+import '../../domain/entities/business_type.dart';
 import '../../infrastructure/authentication/auth_repository.dart';
 import '../../infrastructure/authentication/auth_service.dart';
 import '../../infrastructure/database/app_database.dart';
+import '../../infrastructure/repositories/repository_impls.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
 
@@ -28,6 +32,51 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     });
   }
 
+  Future<void> _ensureUserBusinessConfigured(AuthUser user) async {
+    final db = AppDatabase.instance;
+    db.isLoggedIn = true;
+
+    final bizRepo = BusinessRepositoryImpl();
+    try {
+      await bizRepo.syncBusiness();
+    } catch (_) {}
+
+    var biz = await bizRepo.getCurrentBusiness();
+    if (biz != null) {
+      db.currentBusiness = biz;
+      db.isBusinessConfigured = true;
+      await db.saveLocalState();
+    } else if (db.currentBusiness != null) {
+      db.isBusinessConfigured = true;
+      await db.saveLocalState();
+    } else {
+      final defaultName = (user.name != null && user.name!.trim().isNotEmpty)
+          ? "${user.name!.trim()}'s Shop"
+          : (user.email.contains('@') ? "${user.email.split('@').first}'s Business" : "My Business");
+
+      final defaultBiz = Business(
+        id: const Uuid().v4(),
+        accountId: user.id,
+        name: defaultName,
+        businessType: BusinessType.retail,
+        email: user.email,
+        phone: '',
+        address: '',
+        gstEnabled: true,
+        gstin: '',
+        currency: '₹',
+        invoicePrefix: 'INV',
+        nextInvoiceNumber: 1001,
+        features: BusinessType.retail.defaultFeatures,
+      );
+
+      await bizRepo.saveBusiness(defaultBiz);
+      db.currentBusiness = defaultBiz;
+      db.isBusinessConfigured = true;
+      await db.saveLocalState();
+    }
+  }
+
   Future<void> _onAuthCheckRequested(
     AuthCheckRequested event,
     Emitter<AuthState> emit,
@@ -37,15 +86,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     if (session != null && user != null) {
       await AppDatabase.instance.setActiveUser(user.id);
+      await _ensureUserBusinessConfigured(user);
       emit(Authenticated(user));
     } else if (AppDatabase.instance.isLoggedIn && AppDatabase.instance.activeUserId != null) {
       await AppDatabase.instance.loadAccountData(AppDatabase.instance.activeUserId!);
-      emit(Authenticated(AuthUser(
+      final authUser = AuthUser(
         id: AppDatabase.instance.activeUserId!,
         email: AppDatabase.instance.currentBusiness?.email ?? 'user@xenobiz.internal',
         name: AppDatabase.instance.currentBusiness?.name ?? 'User',
         isEmailVerified: true,
-      )));
+      );
+      await _ensureUserBusinessConfigured(authUser);
+      emit(Authenticated(authUser));
     } else {
       await AppDatabase.instance.clearActiveSessionOnLogout();
       emit(const Unauthenticated());
@@ -64,6 +116,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       await AppDatabase.instance.setActiveUser(user.id);
+      await _ensureUserBusinessConfigured(user);
       emit(Authenticated(user));
     } on AuthFailure catch (e) {
       emit(AuthenticationError(e.message));
@@ -89,6 +142,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (!user.isEmailVerified && _authRepository.currentSession == null) {
           emit(EmailVerificationRequired(user.email));
         } else {
+          await _ensureUserBusinessConfigured(user);
           emit(Authenticated(user));
         }
       } else {
@@ -140,6 +194,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         final user = _authRepository.currentUser;
         if (user != null) {
           await AppDatabase.instance.setActiveUser(user.id);
+          await _ensureUserBusinessConfigured(user);
           emit(Authenticated(user));
         }
         break;

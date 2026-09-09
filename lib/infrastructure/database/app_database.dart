@@ -10,6 +10,7 @@ import '../../domain/entities/invoice.dart';
 import '../../domain/entities/expense.dart';
 import '../../domain/entities/smart_insight.dart';
 import '../../domain/entities/invoice_display_settings.dart';
+import '../datasources/business_local_data_source.dart';
 
 class AppDatabase {
   static final AppDatabase instance = AppDatabase._internal();
@@ -124,11 +125,23 @@ class AppDatabase {
           nextInvoiceNumber: map['nextInvoiceNumber'] ?? 1001,
           features: features,
         );
+        isBusinessConfigured = true;
       } catch (_) {
         currentBusiness = null;
       }
     } else {
       currentBusiness = null;
+    }
+
+    if (!isBusinessConfigured || currentBusiness == null) {
+      try {
+        final driftBiz = await BusinessLocalDataSourceImpl().getCurrentBusiness();
+        if (driftBiz != null) {
+          currentBusiness = driftBiz;
+          isBusinessConfigured = true;
+          await prefs.setBool(userConfiguredKey, true);
+        }
+      } catch (_) {}
     }
 
     // Load items
@@ -255,10 +268,36 @@ class AppDatabase {
   }
 
   void loadDemoData() {
-    isDemoMode = false;
+    isDemoMode = true;
     isLoggedIn = true;
     isBusinessConfigured = true;
-    clearMemoryState();
+    currentBusiness = Business(
+      id: 'biz_demo',
+      name: 'Demo Store & Services',
+      businessType: BusinessType.retail,
+      phone: '9876543210',
+      address: '123 Demo Street',
+      gstEnabled: true,
+      gstin: '27AABCU9603R1ZM',
+      invoicePrefix: 'INV',
+      nextInvoiceNumber: 1001,
+      features: BusinessType.retail.defaultFeatures,
+    );
+    items = [
+      Item(
+        id: 'item_demo_1',
+        businessId: 'biz_demo',
+        name: 'Demo Product',
+        type: ItemType.product,
+        sellingPrice: 100.0,
+        purchasePrice: 60.0,
+        currentStock: 50,
+      ),
+    ];
+    customers = [];
+    invoices = [];
+    expenses = [];
+    smartInsights = [];
   }
 
   Future<void> createNewBusiness(Business business) async {

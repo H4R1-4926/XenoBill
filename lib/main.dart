@@ -9,7 +9,7 @@ import 'infrastructure/repositories/repository_impls.dart';
 import 'application/auth/auth_bloc.dart';
 import 'application/auth/auth_event.dart';
 import 'application/business/business_bloc.dart';
-import 'application/inventory/inventory_bloc.dart';
+import 'application/inventory/inventory_bloc.dart';  
 import 'application/customers/customers_bloc.dart';
 import 'application/invoice/invoice_bloc.dart';
 import 'application/sales/sales_bloc.dart';

@@ -77,6 +77,7 @@ class _LoginPageState extends State<LoginPage> {
               );
             } else if (state is Authenticated) {
               AppDatabase.instance.isLoggedIn = true;
+              AppDatabase.instance.isBusinessConfigured = true;
               AppDatabase.instance.saveLocalState();
               context.go(RouteConstants.home);
             }

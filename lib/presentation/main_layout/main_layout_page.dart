@@ -13,14 +13,23 @@ import '../../infrastructure/services/backup_service.dart';
 class MainLayoutPage extends StatelessWidget {
   final Widget child;
   final GoRouterState? state;
+  final StatefulNavigationShell? navigationShell;
 
   const MainLayoutPage({
     super.key,
     required this.child,
+    this.navigationShell,
     this.state,
   });
 
   int _calculateSelectedIndex(BuildContext context) {
+    if (navigationShell != null) {
+      final index = navigationShell!.currentIndex;
+      if (index == 0) return 0;
+      if (index == 1) return 1;
+      if (index == 2) return 3;
+      if (index == 3) return 4;
+    }
     final String location = state?.matchedLocation ?? state?.uri.path ?? _getSafePath(context);
     if (location.startsWith('/home')) return 0;
     if (location.startsWith('/sales')) return 1;
@@ -38,6 +47,27 @@ class MainLayoutPage extends StatelessWidget {
   }
 
   void _onItemTapped(int index, BuildContext context) {
+    if (navigationShell != null) {
+      switch (index) {
+        case 0:
+          navigationShell!.goBranch(0, initialLocation: 0 == navigationShell!.currentIndex);
+          break;
+        case 1:
+          navigationShell!.goBranch(1, initialLocation: 1 == navigationShell!.currentIndex);
+          break;
+        case 2:
+          context.push(RouteConstants.addInvoice);
+          break;
+        case 3:
+          navigationShell!.goBranch(2, initialLocation: 2 == navigationShell!.currentIndex);
+          break;
+        case 4:
+          navigationShell!.goBranch(3, initialLocation: 3 == navigationShell!.currentIndex);
+          break;
+      }
+      return;
+    }
+
     switch (index) {
       case 0:
         context.go(RouteConstants.home);

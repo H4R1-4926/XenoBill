@@ -183,32 +183,47 @@ class AppRouter {
         path: RouteConstants.backupRestore,
         builder: (context, state) => const BackupRestorePage(),
       ),
-      // Main Shell Route with Floating Navigation Bar
-      ShellRoute(
-        navigatorKey: _shellNavigatorKey,
-        builder: (context, state, child) {
-          return MainLayoutPage(state: state, child: child);
+      // Main Stateful Shell Route with Floating Navigation Bar
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainLayoutPage(
+            navigationShell: navigationShell,
+            state: state,
+            child: navigationShell,
+          );
         },
-        routes: [
-          GoRoute(
-            path: RouteConstants.home,
-            builder: (context, state) => const DashboardPage(),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteConstants.home,
+                builder: (context, state) => const DashboardPage(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: RouteConstants.sales,
-            builder: (context, state) => const SalesHistoryPage(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteConstants.sales,
+                builder: (context, state) => const SalesHistoryPage(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: RouteConstants.shop,
-            builder: (context, state) => const InventoryPage(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteConstants.shop,
+                builder: (context, state) => const InventoryPage(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: RouteConstants.customers,
-            builder: (context, state) => const CustomersPage(),
-          ),
-          GoRoute(
-            path: RouteConstants.settings,
-            builder: (context, state) => const SettingsPage(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RouteConstants.settings,
+                builder: (context, state) => const SettingsPage(),
+              ),
+            ],
           ),
         ],
       ),
